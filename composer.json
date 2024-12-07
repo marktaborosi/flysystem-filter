@@ -1,0 +1,52 @@
+{
+    "name": "marktaborosi/flysystem-filter",
+    "version": "1.0.0",
+    "type": "library",
+    "license": "MIT",
+    "description": "A lightweight filtering layer and an easy-to-use filter builder for League/Flysystem filesystem contents.",
+    "minimum-stability": "stable",
+    "autoload": {
+        "psr-4": {
+            "Marktaborosi\\FlysystemFilter\\": "src/",
+            "Marktaborosi\\FlysystemFilter\\Tests\\": "tests/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "Marktaborosi\\FlysystemFilter\\Tests\\": "tests/"
+        }
+    },
+    "authors": [
+        {
+            "name": "Mark Taborosi",
+            "email": "mark.taborosi@gmail.com",
+            "role": "Developer"
+        }
+    ],
+    "require": {
+        "php": ">=8.2",
+        "league/flysystem": "^3.29",
+        "nesbot/carbon": "^3.8"
+    },
+    "require-dev": {
+        "symfony/var-dumper": "^7.2",
+        "phpunit/phpunit": "^11.5"
+    },
+    "scripts": {
+        "test": "phpunit"
+    },
+    "keywords": [
+        "flysystem",
+        "filter",
+        "filesystem",
+        "filter-builder",
+        "php",
+        "league/flysystem",
+        "filesystem-filter"
+    ],
+    "homepage": "https://github.com/marktaborosi/flysystem-filter",
+    "support": {
+        "issues": "https://github.com/marktaborosi/flysystem-filter/issues",
+        "source": "https://github.com/marktaborosi/flysystem-filter"
+    }
+}
