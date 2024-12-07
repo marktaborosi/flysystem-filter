@@ -8,12 +8,16 @@
 
 Flysystem Filter is a lightweight and intuitive filtering layer for [League/Flysystem](https://flysystem.thephpleague.com/). It provides an easy-to-use `FilterBuilder` for logical and chainable filtering of filesystem contents (`DirectoryListing`).
 
+---
+
 ## Features
 
 - **Simple Filtering:** Filter filesystem contents without writing complex callback functions.
 - **Logical Expressions:** Combine conditions using `and()`, `or()`, `group_start()`, and `group_end()`.
 - **Chainable API:** Build complex filters with a readable, chainable syntax.
 - **Integration with Flysystem:** Works seamlessly with League/Flysystem's `DirectoryListing`.
+
+---
 
 ## Installation
 
@@ -23,9 +27,11 @@ Install via Composer:
 composer require marktaborosi/flysystem-filter
 ```
 
-## Usage
+---
 
-Here's an example of using Flysystem Filter to filter filesystem contents:
+## Basic Usage
+
+Here's a basic example of filtering files only:
 
 ```php
 use League\Flysystem\Filesystem;
@@ -35,26 +41,14 @@ use Marktaborosi\FlysystemFilter\FlysystemFilter;
 
 require 'vendor/autoload.php';
 
+// Setup Flysystem
 $adapter = new LocalFilesystemAdapter(__DIR__ . '/tests/Storage/');
 $flysystem = new Filesystem($adapter);
 $flysystemContents = $flysystem->listContents('', true);
 
-// Create a filter with multiple conditions
+// Filter to include only files
 $filter = new FilterBuilder();
-$filter
-    ->group_start()
-        ->extensionContains(['log', 'txt'])
-        ->and()
-        ->extensionNotEquals(['pdf', 'xlsx'])
-        ->and()
-        ->isFile()
-    ->group_end()
-    ->or()
-    ->filenameMatchesRegex("/console/")
-    ->and()
-    ->isPublic()
-    ->and()
-    ->sizeLt("1G");
+$filter->isFile();
 
 $filteredResults = FlysystemFilter::filter($flysystemContents, $filter);
 
@@ -63,40 +57,113 @@ foreach ($filteredResults as $result) {
 }
 ```
 
-## API Overview
+---
 
-### FilterBuilder
+## Advanced Usage
 
-`FilterBuilder` allows you to create chainable filters for filesystem contents.
-
-#### Conditions
-
-- `isFile()` / `isDirectory()`
-- `pathEquals($paths)` / `pathContains($substrings)` / `pathNotEquals($paths)` / `pathNotContains($substrings)`
-- `filenameEquals($filenames)` / `filenameNotEquals($filenames)` / `filenameContains($substrings)` / `filenameNotContains($substrings)` / `filenameMatchesRegex($pattern)`
-- `basenameEquals($basename)` / `basenameNotEquals($basename)` / `basenameContains($substrings)` / `basenameNotContains($substrings)`
-- `extensionEquals($extensions)` / `extensionNotEquals($extensions)` / `extensionContains($substrings)` / `extensionNotContains($substrings)`
-- `sizeEquals($size)` / `sizeNotEquals($size)` / `sizeGt($size)` / `sizeGte($size)` / `sizeLt($size)` / `sizeLte($size)` / `sizeBetween($min, $max)`
-- `lastModifiedBefore($timestamp)` / `lastModifiedAfter($timestamp)` / `lastModifiedBetween($start, $end)`
-- `isPublic()` / `isPrivate()`
-
-#### Logical Operators
-
-- `and()` / `or()`
-- `group_start()` / `group_end()`
-
-### FlysystemFilter
-
-The `FlysystemFilter` class applies filters to a `DirectoryListing`:
+### Example 1: Filtering by Extension
 
 ```php
-public static function filter(DirectoryListing $list, FilterBuilder $builder): DirectoryListing;
+$filter = new FilterBuilder();
+$filter->extensionEquals(['txt', 'log']);
 ```
 
-## Requirements
+Filters for items with `.txt` or `.log` extensions.
 
-- PHP 8.2 or higher
-- League/Flysystem 3.29 or higher
+---
+
+### Example 2: Filtering by File Size Range
+
+```php
+$filter = new FilterBuilder();
+$filter->sizeBetween("1K", "1M");
+```
+
+Filters for items with file sizes between 1 kilobyte and 1 megabyte.
+
+---
+
+### Example 3: Combining Conditions with Groups
+
+```php
+$filter = new FilterBuilder();
+$filter
+    ->group_start()
+        ->extensionEquals(['txt', 'log'])
+        ->and()
+        ->isFile()
+    ->group_end()
+    ->or()
+    ->group_start()
+        ->sizeLt("1M")
+        ->and()
+        ->isPublic()
+    ->group_end();
+```
+
+This example demonstrates the use of logical grouping to combine conditions:
+- Items with `.txt` or `.log` extensions that are files.
+- OR
+- Items that are less than 1 megabyte in size and publicly accessible.
+
+---
+
+## Filtering Options
+
+### General Conditions
+
+| Method                | Description                                                                                 | Example Usage                                |
+|-----------------------|---------------------------------------------------------------------------------------------|---------------------------------------------|
+| `isFile()`            | Filters for files only.                                                                    | `$filter->isFile();`                        |
+| `isDirectory()`       | Filters for directories only.                                                              | `$filter->isDirectory();`                   |
+
+---
+
+### Path-Based Conditions
+
+| Method                | Description                                                                                 | Example Usage                                |
+|-----------------------|---------------------------------------------------------------------------------------------|---------------------------------------------|
+| `pathEquals($paths)`  | Matches exact path(s).                                                                      | `$filter->pathEquals(['/path/to/file']);`    |
+| `pathContains($substrings)` | Matches paths containing specific substrings.                                         | `$filter->pathContains(['sub']);`           |
+| `pathMatchesRegex($pattern)` | Matches paths using a regex pattern.                                                 | `$filter->pathMatchesRegex('/file/');`      |
+
+---
+
+### Filename-Based Conditions
+
+| Method                | Description                                                                                 | Example Usage                                |
+|-----------------------|---------------------------------------------------------------------------------------------|---------------------------------------------|
+| `filenameEquals($filenames)` | Matches filenames without extensions.                                                | `$filter->filenameEquals(['file']);`        |
+| `filenameContains($substrings)` | Matches filenames containing substrings.                                          | `$filter->filenameContains(['name']);`      |
+
+---
+
+### Size-Based Conditions
+
+| Method                | Description                                                                                 | Example Usage                                |
+|-----------------------|---------------------------------------------------------------------------------------------|---------------------------------------------|
+| `sizeEquals($size)`   | Matches files of a specific size.                                                           | `$filter->sizeEquals("1M");`                |
+| `sizeBetween($min, $max)` | Matches files within a size range.                                                      | `$filter->sizeBetween("1K", "1M");`         |
+
+**Note:** Size strings can use units like `B`, `K`, `M`, `G`, and `T`.
+
+---
+
+## Logical Operators
+
+Use these methods to build complex conditions:
+- `and()`
+- `or()`
+- `group_start()`
+- `group_end()`
+
+For example:
+
+```php
+$filter->group_start()->isFile()->and()->sizeLt("1M")->group_end();
+```
+
+---
 
 ## Development
 
@@ -106,9 +173,13 @@ Run the tests:
 composer test
 ```
 
+---
+
 ## Contributing
 
 Feel free to contribute to the project by submitting issues or pull requests on [GitHub](https://github.com/marktaborosi/flysystem-filter).
+
+---
 
 ## License
 
