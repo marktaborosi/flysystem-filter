@@ -41,7 +41,7 @@
         "filesystem",
         "filter-builder",
         "php",
-        "league/flysystem",
+        "league-flysystem",
         "filesystem-filter"
     ],
     "homepage": "https://github.com/marktaborosi/flysystem-filter",
