@@ -1,6 +1,5 @@
 {
     "name": "marktaborosi/flysystem-filter",
-    "version": "1.0.0",
     "type": "library",
     "license": "MIT",
     "description": "A lightweight filtering layer and an easy-to-use filter builder for League/Flysystem filesystem contents.",
