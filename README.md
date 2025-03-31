@@ -6,6 +6,7 @@
 [![Software License](https://img.shields.io/badge/license-MIT-brightgreen.svg)](https://github.com/marktaborosi/flysystem-filter/blob/master/LICENSE)
 ![Downloads](https://img.shields.io/packagist/dt/marktaborosi/flysystem-filter.svg)
 ![php 8.2+](https://img.shields.io/badge/php-min%208.2-red.svg)
+[![CI](https://github.com/marktaborosi/flysystem-filter/actions/workflows/test.yml/badge.svg)](https://github.com/marktaborosi/flysystem-filter/actions)
 
 Flysystem Filter is a lightweight and intuitive filtering layer for [League/Flysystem](https://flysystem.thephpleague.com/). It provides an easy-to-use `FilterBuilder` for logical and chainable filtering of filesystem contents (`DirectoryListing`).
 
