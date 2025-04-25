@@ -1,5 +1,6 @@
 <?php
-namespace Marktaborosi\FlysystemFilter\Tests\Unit;
+
+namespace Marktaborosi\FlysystemFilter\Tests\Unit\FlysystemFilter;
 
 use Marktaborosi\FlysystemFilter\FilterBuilder;
 use Marktaborosi\FlysystemFilter\FlysystemFilter;
@@ -10,15 +11,21 @@ use PHPUnit\Framework\MockObject\Exception;
 use PHPUnit\Framework\TestCase;
 use stdClass;
 
+/**
+ * Class FlysystemFilterTest
+ *
+ * Unit tests for FlysystemFilter::filter() method.
+ * Validates filtering functionality for various attribute types using FilterBuilder.
+ */
 class FlysystemFilterTest extends TestCase
 {
     /**
-     * Test filtering a DirectoryListing using a FilterBuilder.
+     * Test filtering a DirectoryListing using a FilterBuilder with conditions.
+     *
      * @throws Exception
      */
     public function test_filter_with_conditions()
     {
-        // Mock DirectoryListing items
         $file1 = $this->createMock(FileAttributes::class);
         $file1->method('path')->willReturn('test/file1.txt');
 
@@ -28,29 +35,25 @@ class FlysystemFilterTest extends TestCase
         $directory = $this->createMock(DirectoryAttributes::class);
         $directory->method('path')->willReturn('test/subdir');
 
-        // Create a DirectoryListing mock
-        $directoryListing = new DirectoryListing([$file1, $file2, $directory]);
+        $listing = new DirectoryListing([$file1, $file2, $directory]);
 
-        // Create a FilterBuilder instance and set conditions
         $builder = new FilterBuilder();
         $builder->isFile()->and()->extensionEquals('txt');
 
-        // Apply the filter
-        $filteredListing = FlysystemFilter::filter($directoryListing, $builder);
+        $filtered = FlysystemFilter::filter($listing, $builder);
 
-        // Assert the filtered result contains only file1
-        $filteredItems = $filteredListing->toArray();
-        $this->assertCount(1, $filteredItems);
-        $this->assertSame($file1, $filteredItems[0]);
+        $items = $filtered->toArray();
+        $this->assertCount(1, $items);
+        $this->assertSame($file1, $items[0]);
     }
 
     /**
-     * Test filtering a DirectoryListing with no filters applied.
+     * Test filtering a DirectoryListing without applying any conditions.
+     *
      * @throws Exception
      */
     public function test_filter_without_conditions()
     {
-        // Mock DirectoryListing items
         $file1 = $this->createMock(FileAttributes::class);
         $file1->method('path')->willReturn('test/file1.txt');
 
@@ -60,42 +63,34 @@ class FlysystemFilterTest extends TestCase
         $directory = $this->createMock(DirectoryAttributes::class);
         $directory->method('path')->willReturn('test/subdir');
 
-        // Create a DirectoryListing mock
-        $directoryListing = new DirectoryListing([$file1, $file2, $directory]);
+        $listing = new DirectoryListing([$file1, $file2, $directory]);
 
-        // Create an empty FilterBuilder instance
-        $builder = new FilterBuilder();
+        $builder = new FilterBuilder(); // no filters
 
-        // Apply the filter
-        $filteredListing = FlysystemFilter::filter($directoryListing, $builder);
+        $filtered = FlysystemFilter::filter($listing, $builder);
 
-        // Assert the filtered result contains all items
-        $filteredItems = $filteredListing->toArray();
-        $this->assertCount(3, $filteredItems);
-        $this->assertSame([$file1, $file2, $directory], $filteredItems);
+        $this->assertCount(3, $filtered->toArray());
+        $this->assertSame([$file1, $file2, $directory], $filtered->toArray());
     }
 
     /**
-     * Test filtering an empty DirectoryListing.
+     * Test filtering when the DirectoryListing is empty.
      */
     public function test_filter_with_empty_directory_listing()
     {
-        // Create an empty DirectoryListing mock
-        $directoryListing = new DirectoryListing([]);
+        $listing = new DirectoryListing([]);
 
-        // Create a FilterBuilder instance with any condition
         $builder = new FilterBuilder();
         $builder->isFile();
 
-        // Apply the filter
-        $filteredListing = FlysystemFilter::filter($directoryListing, $builder);
+        $filtered = FlysystemFilter::filter($listing, $builder);
 
-        // Assert the filtered result is empty
-        $this->assertCount(0, $filteredListing->toArray());
+        $this->assertCount(0, $filtered->toArray());
     }
 
     /**
-     * Test filtering with only directories
+     * Test filtering where only directories are expected.
+     *
      * @throws Exception
      */
     public function test_filter_only_directories()
@@ -123,7 +118,8 @@ class FlysystemFilterTest extends TestCase
     }
 
     /**
-     * Test files with log extensions
+     * Test filtering files with a specific extension (e.g. .log).
+     *
      * @throws Exception
      */
     public function test_filter_files_with_log_extension()
@@ -151,7 +147,8 @@ class FlysystemFilterTest extends TestCase
     }
 
     /**
-     * Dirs or txt files
+     * Test OR logic: isDirectory OR extension is 'txt'.
+     *
      * @throws Exception
      */
     public function test_filter_dirs_or_txt_files()
@@ -179,7 +176,8 @@ class FlysystemFilterTest extends TestCase
     }
 
     /**
-     * Filter with non storage attribute objects
+     * Test filtering where one of the items is not a StorageAttributes object.
+     *
      * @throws Exception
      */
     public function test_filter_with_non_storage_attribute_objects()
@@ -202,7 +200,8 @@ class FlysystemFilterTest extends TestCase
     }
 
     /**
-     * Case insensitive extension
+     * Test filtering with case-insensitive extension comparison.
+     *
      * @throws Exception
      */
     public function test_filter_with_case_insensitive_extension()
@@ -228,5 +227,4 @@ class FlysystemFilterTest extends TestCase
         $this->assertContains($file1, $items);
         $this->assertContains($file2, $items);
     }
-
 }

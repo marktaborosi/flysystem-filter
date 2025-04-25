@@ -109,11 +109,20 @@ $filteredResults = FlysystemFilter::filter($flysystemContents, $filter);
 - `sizeEquals($size)`: Matches files of a specific size.
 - `sizeGt($size)`: Matches files larger than a specific size.
 - `sizeLt($size)`: Matches files smaller than a specific size.
-- **Note**: Sizes can be specified in units like `B`, `K`, `M`, `G`, `T`.
+
+📌 **Note**: Sizes can be specified in units like `B`, `K`, `M`, `G`, `T`.
 
 #### Date-Based Conditions
 - `lastModifiedBefore($timestamp)`: Matches files modified before a specific timestamp.
 - `lastModifiedAfter($timestamp)`: Matches files modified after a specific timestamp.
+
+#### Mime-type Conditions
+- `mimeTypeEquals($mimeTypes)`: Matches files with a specific MIME type. Accepts string or array (e.g. 'image/png').
+- `mimeTypeNotEquals($mimeTypes)`: Matches files that do not have the specified MIME type(s).
+- `mimeTypeContains($substrings)`: Matches files whose MIME type contains any given substring (e.g. 'image', 'text').
+- `mimeTypeNotContains($substrings)`: Matches files whose MIME type does not contain any of the given substrings.
+
+📌 **Note**: MIME type detection is performed using the file path via league/mime-type-detection. No file contents are read.
 
 ### Logical Operators
 - `and()`: Combines conditions with logical AND.

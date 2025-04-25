@@ -25,7 +25,8 @@
     "require": {
         "php": ">=8.2",
         "league/flysystem": "^3.29",
-        "nesbot/carbon": "^3.8"
+        "nesbot/carbon": "^3.8",
+        "league/mime-type-detection": "^1.16"
     },
     "require-dev": {
         "symfony/var-dumper": "^7.2",

@@ -6,14 +6,15 @@ use Carbon\Carbon;
 use League\Flysystem\DirectoryAttributes;
 use League\Flysystem\FileAttributes;
 use League\Flysystem\StorageAttributes;
+use League\MimeTypeDetection\FinfoMimeTypeDetector;
 use LogicException;
 
 class FilterBuilder
 {
-    private array $conditions = []; // Holds all conditions and logical expressions
     private array $currentGroup = []; // Tracks the current group of conditions
     private bool $expectingLogicalOperator = false; // Tracks if a logical operator is expected
     private int $groupLevel = 0; // Tracks the depth of grouping
+    private ?FinfoMimeTypeDetector $mimeTypeDetector = null; // Mime-type detector lazy - only when needed
 
     /**
      * Add a condition for filtering only files.
@@ -412,40 +413,65 @@ class FilterBuilder
     }
 
     /**
-     * Add a condition to check if a metadata key exists.
+     * Add a condition to filter items matching specific MIME types.
      *
-     * @param string $key
+     * This method filters items whose MIME type exactly matches any of the specified types.
+     * The MIME type is determined based on the file path using the configured MIME type detector.
+     *
+     * @param string|array $mimeTypes One or more MIME types to match (e.g., 'image/png', 'application/pdf').
      * @return $this
      */
-    public function hasMetadataKey(string $key): self
+    public function mimeTypeEquals(string|array $mimeTypes): self
     {
-        $this->addCondition(fn(StorageAttributes $item) => array_key_exists($key, $item->extraMetadata()));
+        $mimeTypes = (array) $mimeTypes;
+
+        $this->addCondition(function (StorageAttributes $item) use ($mimeTypes) {
+            $mimeType = $this->getMimeTypeFromPath($item->path());
+
+            return $mimeType !== null && in_array($mimeType, $mimeTypes, true);
+        });
+
         return $this;
     }
 
+
     /**
-     * Add a condition to filter by metadata value equals.
+     * Add a condition to filter items whose MIME type contains specified substrings.
      *
-     * @param string $key
-     * @param mixed $value
+     * This method filters items whose MIME type includes any of the provided substrings.
+     * The MIME type is determined based on the file path using the configured MIME type detector.
+     *
+     * @param string|array $substrings One or more substrings to search for within the MIME type (e.g., 'image', 'text').
      * @return $this
      */
-    public function metadataEquals(string $key, mixed $value): self
+    public function mimeTypeContains(string|array $substrings): self
     {
-        $this->addCondition(fn(StorageAttributes $item) => isset($item->extraMetadata()[$key]) && $item->extraMetadata()[$key] === $value);
-        return $this;
+        return $this->filterMimeTypeContains((array) $substrings, false);
     }
 
     /**
-     * Add a condition to filter by metadata value contains.
+     * Add a condition to filter items whose MIME type does not contain specified substrings.
      *
-     * @param string $key
-     * @param string $value
+     * This method filters items whose MIME type does not include any of the provided substrings.
+     * The MIME type is determined based on the file path using the configured MIME type detector.
+     *
+     * @param string|array $substrings One or more substrings to ensure are not present within the MIME type (e.g., 'application', 'video').
      * @return $this
      */
-    public function metadataContains(string $key, string $value): self
+    public function mimeTypeNotContains(string|array $substrings): self
     {
-        $this->addCondition(fn(StorageAttributes $item) => isset($item->extraMetadata()[$key]) && str_contains($item->extraMetadata()[$key], $value));
+        return $this->filterMimeTypeContains((array) $substrings, true);
+    }
+
+    public function mimeTypeNotEquals(string|array $mimeTypes): self
+    {
+        $mimeTypes = (array) $mimeTypes;
+
+        $this->addCondition(function (StorageAttributes $item) use ($mimeTypes) {
+            $mimeType = $this->getMimeTypeFromPath($item->path());
+            return $mimeType === null || !in_array($mimeType, $mimeTypes, true);
+        });
+
         return $this;
     }
 
@@ -663,5 +689,43 @@ class FilterBuilder
         $info = pathinfo($path);
         return $info['extension'] ?? null;
     }
+
+    /**
+     * Get mime-type by extension
+     *
+     * @param string $path
+     * @return string|null
+     */
+    private function getMimeTypeFromPath(string $path): ?string
+    {
+        if ($this->mimeTypeDetector === null) {
+            $this->mimeTypeDetector = new FinfoMimeTypeDetector();
+        }
+
+        return $this->mimeTypeDetector->detectMimeTypeFromPath($path);
+    }
+
+    private function filterMimeTypeContains(array $substrings, bool $negate): self
+    {
+        $this->addCondition(function (StorageAttributes $item) use ($substrings, $negate) {
+            $mimeType = $this->getMimeTypeFromPath($item->path());
+
+            if ($mimeType === null) {
+                return $negate;
+            }
+
+            foreach ($substrings as $substring) {
+                if (str_contains($mimeType, $substring)) {
+                    return !$negate;
+                }
+            }
+
+            return $negate;
+        });
+
+        return $this;
+    }
+
+
 
 }
