@@ -635,12 +635,13 @@ class FilterBuilder
             return $size;
         }
 
-        if (preg_match('/^(\d+)([BMGTP])$/i', $size, $matches)) {
+        if (preg_match('/^(\d+)([BKMGT])$/i', $size, $matches)) {
             $value = (int)$matches[1];
             $unit = strtoupper($matches[2]);
 
             return match ($unit) {
                 'B' => $value,                      // Byte
+                'K' => $value * 1024,               // Kilobyte
                 'M' => $value * 1024 ** 2,          // Megabyte
                 'G' => $value * 1024 ** 3,          // Gigabyte
                 'T' => $value * 1024 ** 4,          // Terabyte

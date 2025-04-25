@@ -2,6 +2,7 @@
 namespace Marktaborosi\FlysystemFilter\Tests\Unit;
 
 use Carbon\Carbon;
+use LogicException;
 use PHPUnit\Framework\MockObject\Exception;
 use PHPUnit\Framework\TestCase;
 use League\Flysystem\StorageAttributes;
@@ -131,6 +132,101 @@ class FilterBuilderTest extends TestCase
     }
 
     /**
+     * Test filtering by file size between two values by bytes.
+     *
+     * @throws Exception
+     */
+    public function test_size_between_with_bytes()
+    {
+        $filter = new FilterBuilder();
+        $filter->sizeBetween('100B', '200B');
+
+        $item = $this->createMock(FileAttributes::class);
+        $item->method('fileSize')->willReturn(150);
+
+        $this->assertTrue($filter->matches($item));
+    }
+
+    /**
+     * Test filtering by file size between two values by kilobytes.
+     *
+     * @throws Exception
+     */
+    public function test_size_between_with_kilobytes()
+    {
+        $filter = new FilterBuilder();
+        $filter->sizeBetween('1K', '2K');
+
+        $item = $this->createMock(FileAttributes::class);
+        $item->method('fileSize')->willReturn(1500);
+
+        $this->assertTrue($filter->matches($item));
+    }
+
+    /**
+     * Test filtering by file size between two values by megabytes.
+     *
+     * @throws Exception
+     */
+    public function test_size_between_with_megabytes()
+    {
+        $filter = new FilterBuilder();
+        $filter->sizeBetween('1M', '2M');
+
+        $item = $this->createMock(FileAttributes::class);
+        $item->method('fileSize')->willReturn(1500000);
+
+        $this->assertTrue($filter->matches($item));
+    }
+
+    /**
+     * Test filtering by file size between two values by gigabytes.
+     *
+     * @throws Exception
+     */
+    public function test_size_between_with_gigabytes()
+    {
+        $filter = new FilterBuilder();
+        $filter->sizeBetween('1G', '2G');
+
+        $item = $this->createMock(FileAttributes::class);
+        $item->method('fileSize')->willReturn(1073741824);
+
+        $this->assertTrue($filter->matches($item));
+    }
+
+    /**
+     * Test filtering by file size between two values by terrabytes.
+     *
+     * @throws Exception
+     */
+    public function test_size_between_with_terrabytes()
+    {
+        $filter = new FilterBuilder();
+        $filter->sizeBetween('1T', '2T');
+
+        $item = $this->createMock(FileAttributes::class);
+        $item->method('fileSize')->willReturn(1649267441664);
+
+        $this->assertTrue($filter->matches($item));
+    }
+
+    /**
+     * Test filtering by file size with bad unit values
+     * @throws Exception
+     */
+    public function test_size_between_with_bad_unit_throws_logic_exception() {
+        $this->expectException(LogicException::class);
+
+        $filter = new FilterBuilder();
+        $filter->sizeBetween('1F','2F');
+
+        $item = $this->createMock(FileAttributes::class);
+        $item->method('fileSize')->willThrowException(new LogicException());
+    }
+
+
+    /**
      * Test filtering by last modified date between two timestamps.
      *
      * @throws Exception
@@ -237,7 +333,7 @@ class FilterBuilderTest extends TestCase
      */
     public function test_group_end_without_start_throws()
     {
-        $this->expectException(\LogicException::class);
+        $this->expectException(LogicException::class);
         $this->expectExceptionMessage('Mismatched group_end');
 
         $filter = new FilterBuilder();
@@ -250,7 +346,7 @@ class FilterBuilderTest extends TestCase
      */
     public function test_unclosed_group_throws()
     {
-        $this->expectException(\LogicException::class);
+        $this->expectException(LogicException::class);
         $this->expectExceptionMessage('Unbalanced groups');
 
         $filter = new FilterBuilder();
