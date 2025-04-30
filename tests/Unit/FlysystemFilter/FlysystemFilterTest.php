@@ -69,8 +69,10 @@ class FlysystemFilterTest extends TestCase
 
         $filtered = FlysystemFilter::filter($listing, $builder);
 
-        $this->assertCount(3, $filtered->toArray());
-        $this->assertSame([$file1, $file2, $directory], $filtered->toArray());
+        $filteredArray = $filtered->toArray(); // Egyszeri konvertálás
+
+        $this->assertCount(3, $filteredArray);
+        $this->assertSame([$file1, $file2, $directory], $filteredArray);
     }
 
     /**

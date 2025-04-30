@@ -6,6 +6,16 @@ This project adheres to [Semantic Versioning](https://semver.org).
 
 ---
 
+## [2.0.0] – 2025-05-01
+
+### ⚠️ Breaking Changes
+
+- **Changed**: `FlysystemFilter::filter()` now returns a `DirectoryListing` constructed from a generator instead of an array. This change improves memory efficiency but may affect consumers who rely on multiple iterations over the result. To adapt, consider converting the result to an array if needed:
+
+  ```php
+  $filtered = FlysystemFilter::filter($listing, $builder);
+  $results = iterator_to_array($filtered, false);
+
 ## [1.1.0] – 2025-04-25
 
 ### Added
