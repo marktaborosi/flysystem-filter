@@ -1,6 +1,6 @@
 <?php
 
-namespace FilterBuilder\Attributes;
+namespace FilterBuilder\Traits;
 
 use League\Flysystem\StorageAttributes;
 use Marktaborosi\FlysystemFilter\FilterBuilder;
@@ -14,7 +14,7 @@ use PHPUnit\Framework\TestCase;
  * These tests ensure that filename-based conditions (excluding extensions)
  * are properly evaluated using exact match, negation, substring presence, and regex.
  */
-class FilenameTest extends TestCase
+class FilenameFiltersTraitTest extends TestCase
 {
     /**
      * Test that filenameEquals matches when the filename (without extension) is exactly equal.
@@ -108,6 +108,70 @@ class FilenameTest extends TestCase
 
         $item = $this->createMock(StorageAttributes::class);
         $item->method('path')->willReturn('/archive/summary_final.txt');
+
+        $this->assertFalse($filter->matches($item));
+    }
+
+    /**
+     * Test that filenameStartsWith matches when the filename starts with a given prefix.
+     *
+     * @throws Exception
+     */
+    public function test_filename_starts_with()
+    {
+        $filter = new FilterBuilder();
+        $filter->filenameStartsWith(['report', 'invoice']);
+
+        $item = $this->createMock(StorageAttributes::class);
+        $item->method('path')->willReturn('/docs/report2024.pdf');
+
+        $this->assertTrue($filter->matches($item));
+    }
+
+    /**
+     * Test that filenameStartsWith does not match when no prefix matches.
+     *
+     * @throws Exception
+     */
+    public function test_filename_starts_with_negative()
+    {
+        $filter = new FilterBuilder();
+        $filter->filenameStartsWith(['log', 'debug']);
+
+        $item = $this->createMock(StorageAttributes::class);
+        $item->method('path')->willReturn('/logs/error2024.txt');
+
+        $this->assertFalse($filter->matches($item));
+    }
+
+    /**
+     * Test that filenameEndsWith matches when the filename ends with a given suffix.
+     *
+     * @throws Exception
+     */
+    public function test_filename_ends_with()
+    {
+        $filter = new FilterBuilder();
+        $filter->filenameEndsWith(['2024', '_final']);
+
+        $item = $this->createMock(StorageAttributes::class);
+        $item->method('path')->willReturn('/articles/article_final.docx');
+
+        $this->assertTrue($filter->matches($item));
+    }
+
+    /**
+     * Test that filenameEndsWith does not match when no suffix matches.
+     *
+     * @throws Exception
+     */
+    public function test_filename_ends_with_negative()
+    {
+        $filter = new FilterBuilder();
+        $filter->filenameEndsWith(['draft', 'test']);
+
+        $item = $this->createMock(StorageAttributes::class);
+        $item->method('path')->willReturn('/content/article_final.pdf');
 
         $this->assertFalse($filter->matches($item));
     }

@@ -10,15 +10,15 @@ use PHPUnit\Framework\TestCase;
 
 class FlysystemFilterIntegrationTest extends TestCase
 {
+
     private Filesystem $filesystem;
-    private string $testDirectory;
 
     protected function setUp(): void
     {
-        $this->testDirectory = __DIR__ . '/../Storage';
+        $testDirectory = __DIR__ . '/../Storage';
 
         // Create a local filesystem adapter pointing to the test directory
-        $adapter = new LocalFilesystemAdapter($this->testDirectory);
+        $adapter = new LocalFilesystemAdapter($testDirectory);
         $this->filesystem = new Filesystem($adapter);
     }
 
@@ -38,7 +38,8 @@ class FlysystemFilterIntegrationTest extends TestCase
         $filter->isFile();
 
         // Apply the filter
-        $filteredResults = FlysystemFilter::filter($flysystemContents, $filter);
+        $flysystemFilter = new FlysystemFilter();
+        $filteredResults = $flysystemFilter->filter($flysystemContents, $filter);
 
         // Extract paths from the filtered results for assertions
         $filteredPaths = [];
@@ -70,7 +71,8 @@ class FlysystemFilterIntegrationTest extends TestCase
         $filter->extensionEquals('txt');
 
         // Apply the filter
-        $filteredResults = FlysystemFilter::filter($flysystemContents, $filter);
+        $flysystemFilter = new FlysystemFilter();
+        $filteredResults = $flysystemFilter->filter($flysystemContents, $filter);
 
         // Extract paths from the filtered results for assertions
         $filteredPaths = [];
@@ -100,7 +102,8 @@ class FlysystemFilterIntegrationTest extends TestCase
         $filter->filenameContains(['conso','dum']);
 
         // Apply the filter
-        $filteredResults = FlysystemFilter::filter($flysystemContents, $filter);
+        $flysystemFilter = new FlysystemFilter();
+        $filteredResults = $flysystemFilter->filter($flysystemContents, $filter);
 
         // Extract paths from the filtered results for assertions
         $filteredPaths = [];
@@ -130,7 +133,8 @@ class FlysystemFilterIntegrationTest extends TestCase
         $filter->filenameEquals(['console','dummy']);
 
         // Apply the filter
-        $filteredResults = FlysystemFilter::filter($flysystemContents, $filter);
+        $flysystemFilter = new FlysystemFilter();
+        $filteredResults = $flysystemFilter->filter($flysystemContents, $filter);
 
         // Extract paths from the filtered results for assertions
         $filteredPaths = [];
@@ -162,7 +166,8 @@ class FlysystemFilterIntegrationTest extends TestCase
             ->filenameNotEquals(['console','dummy']);
 
         // Apply the filter
-        $filteredResults = FlysystemFilter::filter($flysystemContents, $filter);
+        $flysystemFilter = new FlysystemFilter();
+        $filteredResults = $flysystemFilter->filter($flysystemContents, $filter);
 
         // Extract paths from the filtered results for assertions
         $filteredPaths = [];
@@ -194,7 +199,8 @@ class FlysystemFilterIntegrationTest extends TestCase
             ->basenameEquals(['console.log','dummy.jpg']);
 
         // Apply the filter
-        $filteredResults = FlysystemFilter::filter($flysystemContents, $filter);
+        $flysystemFilter = new FlysystemFilter();
+        $filteredResults = $flysystemFilter->filter($flysystemContents, $filter);
 
         // Extract paths from the filtered results for assertions
         $filteredPaths = [];
@@ -232,7 +238,8 @@ class FlysystemFilterIntegrationTest extends TestCase
             ->group_end();
 
         // Apply the filter
-        $filteredResults = FlysystemFilter::filter($flysystemContents, $filter);
+        $flysystemFilter = new FlysystemFilter();
+        $filteredResults = $flysystemFilter->filter($flysystemContents, $filter);
 
         // Extract paths from the filtered results for assertions
         $filteredPaths = [];

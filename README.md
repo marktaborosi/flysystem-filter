@@ -1,4 +1,3 @@
-
 # Flysystem Filter
 
 [![Author](https://img.shields.io/badge/author-@marktaborosi-blue.svg)](https://github.com/marktaborosi)
@@ -46,7 +45,8 @@ $flysystemContents = $flysystem->listContents('', true);
 $filter = new FilterBuilder();
 $filter->isFile();
 
-$filteredResults = FlysystemFilter::filter($flysystemContents, $filter);
+$flysystemFilter = new FlysystemFilter();
+$filteredResults = $flysystemFilter->filter($flysystemContents, $filter);
 
 foreach ($filteredResults as $result) {
     echo $result->path() . PHP_EOL;
@@ -66,7 +66,8 @@ $filter
     ->and()
     ->sizeLt('1G');
 
-$filteredResults = FlysystemFilter::filter($flysystemContents, $filter);
+$flysytemFilter = new FlysystemFilter();
+$filteredResults = $flysystemFilter->filter($flysystemContents, $filter);
 ```
 
 ### Using Grouping and Logical Operators
@@ -84,8 +85,94 @@ $filter
     ->or()
     ->pathMatchesRegex('/debug/');
 
-$filteredResults = FlysystemFilter::filter($flysystemContents, $filter);
+$flysytemFilter = new FlysystemFilter();
+$filteredResults = $flysystemFilter->filter($flysystemContents, $filter);
 ```
+
+## Laravel Integration
+
+From **v3.0.0**, Flysystem Filter ships with native Laravel support — including a Service Provider and a Facade — for seamless integration into your Laravel projects.
+
+### Installation
+
+If installed via Composer in a Laravel application, the package will be automatically discovered thanks to Laravel's package auto-discovery.
+
+**composer.json** (auto-discovery config — already included in this package):
+
+```json
+{
+  "extra": {
+    "laravel": {
+      "providers": [
+        "Marktaborosi\\FlysystemFilter\\Laravel\\FlysystemFilterServiceProvider"
+      ],
+      "aliases": {
+        "FlysystemFilter": "Marktaborosi\\FlysystemFilter\\Laravel\\FlysystemFilterFacade"
+      }
+    }
+  }
+}
+```
+
+If you have disabled auto-discovery, register them manually in `config/app.php`:
+
+```php
+'providers' => [
+    Marktaborosi\FlysystemFilter\Laravel\FlysystemFilterServiceProvider::class,
+],
+'aliases' => [
+    'FlysystemFilter' => Marktaborosi\FlysystemFilter\Laravel\FlysystemFilterFacade::class,
+],
+```
+
+### Example: Using `FilterBuilder` via the Facade
+
+```php
+use Illuminate\Support\Facades\Storage;
+use Marktaborosi\FlysystemFilter\FilterBuilder;
+use FlysystemFilter; // Facade alias
+
+Route::get('/filtered-files', function () {
+    $listing = Storage::disk('local')->listContents('', true);
+
+    $builder = (new FilterBuilder())
+        ->isFile()
+        ->group_start()
+            ->filenameContains('console')
+            ->or()
+            ->filenameContains('file')
+        ->group_end();
+
+    $filtered = FlysystemFilter::filter($listing, $builder);
+
+    return $filtered->map(fn($i) => $i->path())->toArray();
+});
+```
+
+### Example: Using a Callable Predicate
+
+```php
+use Illuminate\Support\Facades\Storage;
+use League\Flysystem\StorageAttributes;
+use FlysystemFilter;
+
+Route::get('/log-files', function () {
+    $listing = Storage::disk('local')->listContents('', true);
+
+    // Callable allows custom filter logic without building a `FilterBuilder`
+    $callable = static fn(StorageAttributes $item): bool =>
+        str_ends_with($item->path(), '.log');
+
+    $filtered = FlysystemFilter::filter($listing, $callable);
+
+    return $filtered->map(fn($i) => $i->path())->toArray();
+});
+```
+
+### Notes
+- `FlysystemFilter::filter()` is **now an instance method** (since v3.0.0) — the Facade makes it look static in Laravel, but under the hood it is resolved from the container.
+- All filtering logic and method signatures remain the same as in standalone usage.
+- Non-`StorageAttributes` entries in the listing are automatically skipped.
 
 ## API Overview
 
@@ -97,37 +184,73 @@ $filteredResults = FlysystemFilter::filter($flysystemContents, $filter);
 
 #### Path-Based Conditions
 - `pathEquals($paths)`: Matches exact paths. Accepts `string` or `array`.
-- `pathContains($substrings)`: Matches paths containing specific substrings. Accepts `string` or `array`.
-- `pathMatchesRegex($pattern)`: Matches paths using a regex pattern.
+- `pathContains($substrings)`: Matches paths containing specific substrings.
+- `pathNotContains($substrings)`: Excludes paths containing any given substrings.
+- `pathMatchesRegex($pattern)`: Matches paths using a regular expression.
+- `pathStartsWith($prefixes)`: Matches paths starting with specific prefix(es).
+- `pathEndsWith($suffixes)`: Matches paths ending with specific suffix(es).
 
-#### Filename-Based Conditions
-- `filenameEquals($filenames)`: Matches filenames without extensions. Accepts `string` or `array`.
-- `filenameContains($substrings)`: Matches filenames containing specific substrings. Accepts `string` or `array`.
-- `filenameMatchesRegex($pattern)`: Matches filenames using a regex pattern.
+#### Filename-Based Conditions *(excluding extension)*
+- `filenameEquals($filenames)`: Matches exact filenames (excluding extensions). Accepts `string` or `array`.
+- `filenameNotEquals($filenames)`: Excludes filenames that match exactly.
+- `filenameContains($substrings)`: Matches filenames containing any of the substrings.
+- `filenameNotContains($substrings)`: Excludes filenames containing any of the substrings.
+- `filenameStartsWith($prefixes)`: Matches filenames starting with any of the specified prefix(es).
+- `filenameEndsWith($suffixes)`: Matches filenames ending with any of the specified suffix(es).
+- `filenameMatchesRegex($pattern)`: Matches filenames via regular expression.
+
+#### Basename-Based Conditions *(filename including extension)*
+- `basenameEquals($basenames)`: Matches the full filename (including extension) exactly.
+- `basenameNotEquals($basenames)`: Excludes files with exact matching basenames.
+- `basenameContains($substrings)`: Matches basenames containing any of the substrings.
+- `basenameNotContains($substrings)`: Excludes basenames containing any of the substrings.
+- `basenameStartsWith($prefixes)`: Matches basenames that start with the given prefix(es).
+- `basenameEndsWith($suffixes)`: Matches basenames that end with the given suffix(es).
+
+#### Extension-Based Conditions
+- `extensionEquals($extensions)`: Matches files with one or more exact extensions.
+- `extensionNotEquals($extensions)`: Excludes files with the specified extensions.
+- `extensionContains($substrings)`: Matches files whose extension contains any given substring.
+- `extensionNotContains($substrings)`: Excludes files whose extension contains any given substring.
 
 #### Size-Based Conditions
-- `sizeEquals($size)`: Matches files of a specific size.
+- `sizeEquals($size)`: Matches files with an exact size.
 - `sizeGt($size)`: Matches files larger than a specific size.
+- `sizeGte($size)`: Matches files larger than or equal to a specific size.
 - `sizeLt($size)`: Matches files smaller than a specific size.
+- `sizeLte($size)`: Matches files smaller than or equal to a specific size.
+- `sizeBetween($min, $max)`: Matches files within a size range.
 
-📌 **Note**: Sizes can be specified in units like `B`, `K`, `M`, `G`, `T`.
+📌 **Note**: Size units can be specified as `B`, `K`, `M`, `G`, `T` (e.g., `'512K'`, `'1G'`).
 
 #### Date-Based Conditions
-- `lastModifiedBefore($timestamp)`: Matches files modified before a specific timestamp.
-- `lastModifiedAfter($timestamp)`: Matches files modified after a specific timestamp.
+- `lastModifiedBefore($timestamp)`: Matches files modified before a given timestamp or `Carbon` instance.
+- `lastModifiedAfter($timestamp)`: Matches files modified after a given timestamp or `Carbon` instance.
+- `lastModifiedBetween($start, $end)`: Matches files modified within a date range.
 
-#### Mime-type Conditions
-- `mimeTypeEquals($mimeTypes)`: Matches files with a specific MIME type. Accepts string or array (e.g. 'image/png').
-- `mimeTypeNotEquals($mimeTypes)`: Matches files that do not have the specified MIME type(s).
-- `mimeTypeContains($substrings)`: Matches files whose MIME type contains any given substring (e.g. 'image', 'text').
-- `mimeTypeNotContains($substrings)`: Matches files whose MIME type does not contain any of the given substrings.
+#### Mime-Type Conditions
+- `mimeTypeEquals($mimeTypes)`: Matches files with exact MIME types.
+- `mimeTypeNotEquals($mimeTypes)`: Excludes files with specific MIME types.
+- `mimeTypeContains($substrings)`: Matches files where the MIME type contains any substring.
+- `mimeTypeNotContains($substrings)`: Excludes files whose MIME type contains specific substrings.
 
-📌 **Note**: MIME type detection is performed using the file path via league/mime-type-detection. No file contents are read.
+📌 **Note**: MIME types are detected from file extensions using `league/mime-type-detection`. No file contents are read.
+
+#### Visibility-Based Conditions
+- `isPublic()`: Matches files with `'public'` visibility.
+- `isPrivate()`: Matches files with `'private'` visibility.
+- `visibilityEquals($visibilities)`: Matches files with exact visibility values.
+- `visibilityContains($substrings)`: Matches files whose visibility string contains given substring(s).
+
+#### Depth-Based Conditions
+- `depthEquals($depth)`: Matches items with an exact directory depth.
+- `depthGt($depth)`: Matches items with a depth greater than the specified value.
+- `depthLt($depth)`: Matches items with a depth less than the specified value.
 
 ### Logical Operators
 - `and()`: Combines conditions with logical AND.
 - `or()`: Combines conditions with logical OR.
-- `group_start() / group_end()`: Groups conditions to control logical precedence.
+- `group_start() / group_end()`: Groups conditions for logical precedence (like parentheses).
 
 ## Requirements
 

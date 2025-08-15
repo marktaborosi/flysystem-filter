@@ -3,31 +3,43 @@
 namespace Marktaborosi\FlysystemFilter;
 
 use League\Flysystem\DirectoryListing;
-use League\Flysystem\FilesystemAdapter;
 use League\Flysystem\StorageAttributes;
 
+/**
+ * Provides filtering for Flysystem directory listings.
+ *
+ * Accepts either a {@see FilterBuilder} instance or a callable predicate to determine
+ * which {@see StorageAttributes} items from the given {@see DirectoryListing} should be returned.
+ * Non-{@see StorageAttributes} entries in the listing are automatically skipped.
+ *
+ * @package Marktaborosi\FlysystemFilter
+ */
 class FlysystemFilter
 {
-
     /**
-     * Filters a DirectoryListing using the specified FilterBuilder criteria.
+     * Filters a directory listing using the given builder or predicate.
      *
-     * This method iterates over the provided DirectoryListing and yields only those
-     * StorageAttributes instances that satisfy the conditions defined in the FilterBuilder.
-     * The result is returned as a new DirectoryListing instance backed by a generator,
-     * ensuring memory efficiency even with large datasets.
+     * @param DirectoryListing       $list    The directory listing to filter.
+     * @param callable|FilterBuilder $builder A {@see FilterBuilder} instance or a callable
+     *                                        `(StorageAttributes $item): bool` to decide inclusion.
      *
-     * @param DirectoryListing $list    The original directory listing to be filtered.
-     * @param FilterBuilder    $builder The filter builder containing the filtering criteria.
-     *
-     * @return DirectoryListing A new DirectoryListing instance containing only the items
-     *                          that match the specified filter criteria.
+     * @return DirectoryListing A new listing containing only the matching {@see StorageAttributes} items.
      */
-    public static function filter(DirectoryListing $list, FilterBuilder $builder): DirectoryListing
+    public function filter(DirectoryListing $list, callable|FilterBuilder $builder): DirectoryListing
     {
-        $filteredGenerator = (function () use ($list, $builder) {
+        if ($builder instanceof FilterBuilder) {
+            $predicate = function ($item) use ($builder) {
+                return $item instanceof StorageAttributes && $builder->matches($item);
+            };
+        } else {
+            $predicate = function ($item) use ($builder) {
+                return $item instanceof StorageAttributes && $builder($item);
+            };
+        }
+
+        $filteredGenerator = (function () use ($list, $predicate) {
             foreach ($list as $attribute) {
-                if ($attribute instanceof StorageAttributes && $builder->matches($attribute)) {
+                if ($predicate($attribute)) {
                     yield $attribute;
                 }
             }

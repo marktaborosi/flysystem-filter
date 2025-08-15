@@ -1,6 +1,6 @@
 <?php
 
-namespace FilterBuilder\Attributes;
+namespace FilterBuilder\Traits;
 
 use League\Flysystem\FileAttributes;
 use LogicException;
@@ -15,7 +15,7 @@ use PHPUnit\Framework\TestCase;
  * Tests cover all supported comparisons: equality, inequality, range checks,
  * and human-readable formats (e.g., KB, MB, GB, TB).
  */
-class SizeTest extends TestCase
+class SizeFiltersTraitTest extends TestCase
 {
     /**
      * Test filtering by exact file size using an integer.

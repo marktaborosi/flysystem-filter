@@ -1,6 +1,6 @@
 <?php
 
-namespace FilterBuilder\Attributes;
+namespace FilterBuilder\Traits;
 
 use League\Flysystem\StorageAttributes;
 use Marktaborosi\FlysystemFilter\FilterBuilder;
@@ -13,7 +13,7 @@ use PHPUnit\Framework\TestCase;
  * Unit tests for visibility-based filtering using the FilterBuilder.
  * Tests cover both public and private filters, including positive and negative matching.
  */
-class VisibilityTest extends TestCase
+class VisibilityFiltersTraitTest extends TestCase
 {
     /**
      * Test that isPublic() and isPrivate() filters correctly match their respective visibility values.

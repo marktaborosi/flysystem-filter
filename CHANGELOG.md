@@ -4,6 +4,48 @@
 All notable changes to **Flysystem Filter** will be documented in this file.  
 This project adheres to [Semantic Versioning](https://semver.org).
 
+## [3.0.0] – 2025-08-15
+
+### ⚠️ Breaking Changes
+- **Changed**: `FlysystemFilter::filter()` is no longer a `static` method — it is now an **instance method**.
+    - **Why**: This change was made to enable Laravel service container and Facade integration.
+    - **Impact**: Any previous calls like
+      ```php
+      FlysystemFilter::filter($listing, $builder);
+      ```  
+      must now either:
+        - Use the Laravel Facade (if in a Laravel app):
+          ```php
+          FlysystemFilter::filter($listing, $builder);
+          ```
+          *(Looks static, but is resolved through the container)*
+        - Or instantiate the class directly:
+          ```php
+          (new FlysystemFilter())->filter($listing, $builder);
+          ```
+
+### Added
+- ✅ **Laravel Support** 🎉
+    - `FlysystemFilterServiceProvider` for service container registration.
+    - `FlysystemFilterFacade` for expressive, Facade-style usage in Laravel applications.
+    - Added `composer.json` auto-discovery for both the Service Provider and the Facade alias.
+- ✅ **Callable Predicate Support**
+    - `FlysystemFilter::filter()` now accepts a `callable` in addition to a `FilterBuilder` instance.
+    - This allows custom filter logic without building a `FilterBuilder`.  
+      Example:
+      ```php
+      use League\Flysystem\StorageAttributes;
+
+      $callable = static fn(StorageAttributes $item): bool =>
+          str_ends_with($item->path(), '.log');
+
+      $filtered = (new FlysystemFilter())->filter($listing, $callable);
+      ```
+- ✅ Updated usage examples and integration tests for Laravel and callable usage.
+
+### Changed
+- 📦 **Dependencies**: Bumped `nesbot/carbon` to the latest stable version.
+
 ---
 
 ## [2.0.0] – 2025-05-01

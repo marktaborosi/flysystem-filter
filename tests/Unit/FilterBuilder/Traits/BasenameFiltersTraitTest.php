@@ -1,6 +1,6 @@
 <?php
 
-namespace FilterBuilder\Attributes;
+namespace FilterBuilder\Traits;
 
 use League\Flysystem\StorageAttributes;
 use Marktaborosi\FlysystemFilter\FilterBuilder;
@@ -14,7 +14,7 @@ use PHPUnit\Framework\TestCase;
  * These tests validate filtering logic based on the basename (filename with extension)
  * of file paths provided by Flysystem's StorageAttributes.
  */
-class BasenameTest extends TestCase
+class BasenameFiltersTraitTest extends TestCase
 {
     /**
      * Test that basenameEquals matches when the file's basename exactly matches one of the specified values.
@@ -79,4 +79,71 @@ class BasenameTest extends TestCase
 
         $this->assertTrue($filter->matches($item));
     }
+
+    /**
+     * Test that basenameStartsWith matches when the basename starts with a given prefix.
+     *
+     * @throws Exception
+     */
+    public function test_basename_starts_with()
+    {
+        $filter = new FilterBuilder();
+        $filter->basenameStartsWith(['report_', 'invoice_']);
+
+        $item = $this->createMock(StorageAttributes::class);
+        $item->method('path')->willReturn('/archive/report_2024_final.txt');
+
+        $this->assertTrue($filter->matches($item));
+    }
+
+    /**
+     * Test that basenameStartsWith does not match when the basename does not start with any of the specified prefixes.
+     *
+     * @throws Exception
+     */
+    public function test_basename_starts_with_negative()
+    {
+        $filter = new FilterBuilder();
+        $filter->basenameStartsWith(['log_', 'debug_']);
+
+        $item = $this->createMock(StorageAttributes::class);
+        $item->method('path')->willReturn('/archive/report_2024_final.txt');
+
+        $this->assertFalse($filter->matches($item));
+    }
+
+    /**
+     * Test that basenameEndsWith matches when the basename ends with a given suffix.
+     *
+     * @throws Exception
+     */
+    public function test_basename_ends_with()
+    {
+        $filter = new FilterBuilder();
+        $filter->basenameEndsWith(['_final.txt', '_draft.csv']);
+
+        $item = $this->createMock(StorageAttributes::class);
+        $item->method('path')->willReturn('/documents/summary_final.txt');
+
+        $this->assertTrue($filter->matches($item));
+    }
+
+    /**
+     * Test that basenameEndsWith does not match when the basename does not end with any of the specified suffixes.
+     *
+     * @throws Exception
+     */
+    public function test_basename_ends_with_negative()
+    {
+        $filter = new FilterBuilder();
+        $filter->basenameEndsWith(['.json', '_temp.doc']);
+
+        $item = $this->createMock(StorageAttributes::class);
+        $item->method('path')->willReturn('/documents/summary_final.txt');
+
+        $this->assertFalse($filter->matches($item));
+    }
+
+
+
 }

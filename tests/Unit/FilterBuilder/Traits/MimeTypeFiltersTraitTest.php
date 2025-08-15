@@ -1,6 +1,6 @@
 <?php
 
-namespace FilterBuilder\Attributes;
+namespace FilterBuilder\Traits;
 
 use League\Flysystem\StorageAttributes;
 use Marktaborosi\FlysystemFilter\FilterBuilder;
@@ -16,7 +16,7 @@ use ReflectionException;
  * Uses reflection to test MIME type detection based on file path,
  * simulating real scenarios without reading file contents.
  */
-class MimeTypeTest extends TestCase
+class MimeTypeFiltersTraitTest extends TestCase
 {
     /**
      * Test that mimeTypeEquals correctly matches a file path's MIME type

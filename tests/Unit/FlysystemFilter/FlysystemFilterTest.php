@@ -40,7 +40,8 @@ class FlysystemFilterTest extends TestCase
         $builder = new FilterBuilder();
         $builder->isFile()->and()->extensionEquals('txt');
 
-        $filtered = FlysystemFilter::filter($listing, $builder);
+        $flysystemFilter = new FlysystemFilter();
+        $filtered = $flysystemFilter->filter($listing, $builder);
 
         $items = $filtered->toArray();
         $this->assertCount(1, $items);
@@ -67,7 +68,8 @@ class FlysystemFilterTest extends TestCase
 
         $builder = new FilterBuilder(); // no filters
 
-        $filtered = FlysystemFilter::filter($listing, $builder);
+        $flysystemFilter = new FlysystemFilter();
+        $filtered = $flysystemFilter->filter($listing, $builder);
 
         $filteredArray = $filtered->toArray(); // Egyszeri konvertálás
 
@@ -85,7 +87,8 @@ class FlysystemFilterTest extends TestCase
         $builder = new FilterBuilder();
         $builder->isFile();
 
-        $filtered = FlysystemFilter::filter($listing, $builder);
+        $flysystemFilter = new FlysystemFilter();
+        $filtered = $flysystemFilter->filter($listing, $builder);
 
         $this->assertCount(0, $filtered->toArray());
     }
@@ -111,7 +114,8 @@ class FlysystemFilterTest extends TestCase
         $builder = new FilterBuilder();
         $builder->isDirectory();
 
-        $filtered = FlysystemFilter::filter($listing, $builder);
+        $flysystemFilter = new FlysystemFilter();
+        $filtered = $flysystemFilter->filter($listing, $builder);
 
         $items = $filtered->toArray();
         $this->assertCount(2, $items);
@@ -140,7 +144,8 @@ class FlysystemFilterTest extends TestCase
         $builder = new FilterBuilder();
         $builder->isFile()->and()->extensionEquals('log');
 
-        $filtered = FlysystemFilter::filter($listing, $builder);
+        $flysystemFilter = new FlysystemFilter();
+        $filtered = $flysystemFilter->filter($listing, $builder);
 
         $items = $filtered->toArray();
         $this->assertCount(2, $items);
@@ -169,7 +174,8 @@ class FlysystemFilterTest extends TestCase
         $builder = new FilterBuilder();
         $builder->isDirectory()->or()->extensionEquals('txt');
 
-        $filtered = FlysystemFilter::filter($listing, $builder);
+        $flysystemFilter = new FlysystemFilter();
+        $filtered = $flysystemFilter->filter($listing, $builder);
 
         $items = $filtered->toArray();
         $this->assertCount(2, $items);
@@ -194,7 +200,8 @@ class FlysystemFilterTest extends TestCase
         $builder = new FilterBuilder();
         $builder->isFile();
 
-        $filtered = FlysystemFilter::filter($listing, $builder);
+        $flysystemFilter = new FlysystemFilter();
+        $filtered = $flysystemFilter->filter($listing, $builder);
 
         $items = $filtered->toArray();
         $this->assertCount(1, $items);
@@ -222,7 +229,8 @@ class FlysystemFilterTest extends TestCase
         $builder = new FilterBuilder();
         $builder->isFile()->and()->extensionEquals('txt');
 
-        $filtered = FlysystemFilter::filter($listing, $builder);
+        $flysystemFilter = new FlysystemFilter();
+        $filtered = $flysystemFilter->filter($listing, $builder);
 
         $items = $filtered->toArray();
         $this->assertCount(2, $items);

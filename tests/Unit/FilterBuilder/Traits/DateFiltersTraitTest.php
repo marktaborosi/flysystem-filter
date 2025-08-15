@@ -1,6 +1,6 @@
 <?php
 
-namespace FilterBuilder\Attributes;
+namespace FilterBuilder\Traits;
 
 use Carbon\Carbon;
 use League\Flysystem\StorageAttributes;
@@ -15,7 +15,7 @@ use PHPUnit\Framework\TestCase;
  * These tests verify that date-based filtering works correctly using
  * exact timestamps and Carbon instances for before, after, and between conditions.
  */
-class LastModifiedTest extends TestCase
+class DateFiltersTraitTest extends TestCase
 {
     /**
      * Test filtering by last modified date between two timestamps.

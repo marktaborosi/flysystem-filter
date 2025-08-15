@@ -1,6 +1,6 @@
 <?php
 
-namespace FilterBuilder\Attributes;
+namespace FilterBuilder\Traits;
 
 use League\Flysystem\StorageAttributes;
 use Marktaborosi\FlysystemFilter\FilterBuilder;
@@ -14,7 +14,7 @@ use PHPUnit\Framework\TestCase;
  * These tests ensure that file extensions are correctly matched, excluded,
  * and checked for substring presence in case-insensitive comparisons.
  */
-class ExtensionTest extends TestCase
+class ExtensionFiltersTraitTest extends TestCase
 {
     /**
      * Test filtering by exact extension match (case-insensitive).

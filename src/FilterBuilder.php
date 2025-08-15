@@ -1,547 +1,70 @@
 <?php
-
 namespace Marktaborosi\FlysystemFilter;
 
-use Carbon\Carbon;
-use League\Flysystem\DirectoryAttributes;
-use League\Flysystem\FileAttributes;
+use Marktaborosi\FlysystemFilter\Traits\CustomFilterTrait;
+use Marktaborosi\FlysystemFilter\Traits\ExtensionFiltersTrait;
+use Marktaborosi\FlysystemFilter\Traits\FileTypeFiltersTrait;
+use Marktaborosi\FlysystemFilter\Traits\PathFiltersTrait;
+use Marktaborosi\FlysystemFilter\Traits\FilenameFiltersTrait;
+use Marktaborosi\FlysystemFilter\Traits\BasenameFiltersTrait;
+use Marktaborosi\FlysystemFilter\Traits\SizeFiltersTrait;
+use Marktaborosi\FlysystemFilter\Traits\DateFiltersTrait;
+use Marktaborosi\FlysystemFilter\Traits\MimeTypeFiltersTrait;
+use Marktaborosi\FlysystemFilter\Traits\VisibilityFiltersTrait;
+use Marktaborosi\FlysystemFilter\Traits\DepthFiltersTrait;
+
 use League\Flysystem\StorageAttributes;
 use League\MimeTypeDetection\FinfoMimeTypeDetector;
 use LogicException;
 
+/**
+ * Class FilterBuilder
+ *
+ * A fluent builder for defining file and directory filters in a chainable, expressive way.
+ *
+ * This class is part of the Flysystem Filter library, and enables the creation of complex
+ * filtering logic using logical operators (`and()`, `or()`), grouping (`group_start()`, `group_end()`),
+ * and criteria-based methods for filtering by filename, path, size, date, MIME type, visibility, and depth.
+ *
+ * FilterBuilder stores a sequence of callable conditions and logical expressions, and uses these
+ * to evaluate whether a given Flysystem StorageAttributes item should match.
+ *
+ * @package Marktaborosi\FlysystemFilter
+ *
+ **/
 class FilterBuilder
 {
-    private array $currentGroup = []; // Tracks the current group of conditions
-    private bool $expectingLogicalOperator = false; // Tracks if a logical operator is expected
-    private int $groupLevel = 0; // Tracks the depth of grouping
-    private ?FinfoMimeTypeDetector $mimeTypeDetector = null; // Mime-type detector lazy - only when needed
+    use PathFiltersTrait;
+    use FilenameFiltersTrait;
+    use BasenameFiltersTrait;
+    use SizeFiltersTrait;
+    use DateFiltersTrait;
+    use MimeTypeFiltersTrait;
+    use VisibilityFiltersTrait;
+    use DepthFiltersTrait;
+    use FileTypeFiltersTrait;
+    use ExtensionFiltersTrait;
+    use CustomFilterTrait;
 
     /**
-     * Add a condition for filtering only files.
-     *
-     * @return $this
+     * @var array Stores the current condition group and logical expression tokens.
      */
-    public function isFile(): self
-    {
-        $this->addCondition(fn(StorageAttributes $item) => $item instanceof FileAttributes);
-        return $this;
-    }
-
+    private array $currentGroup = [];
     /**
-     * Add a condition for filtering only directories.
-     *
-     * @return $this
+     * @var bool Indicates whether a logical operator is expected next.
      */
-    public function isDirectory(): self
-    {
-        $this->addCondition(fn(StorageAttributes $item) => $item instanceof DirectoryAttributes);
-        return $this;
-    }
-
+    private bool $expectingLogicalOperator = false;
     /**
-     * Add a condition for exact path match.
-     *
-     * @param string|array $paths
-     * @return $this
+     * @var int Tracks the depth of nested condition groups.
      */
-    public function pathEquals(string|array $paths): self
-    {
-        $paths = (array)$paths;
-        $this->addCondition(fn(StorageAttributes $item) => in_array($item->path(), $paths));
-        return $this;
-    }
-
+    private int $groupLevel = 0;
     /**
-     * Add a condition to filter by path matching a regex pattern.
-     *
-     * @param string $pattern
-     * @return $this
+     * @var FinfoMimeTypeDetector|null Lazy-loaded MIME type detector.
      */
-    public function pathMatchesRegex(string $pattern): self
-    {
-        $this->addCondition(fn(StorageAttributes $item) => preg_match($pattern, $item->path()));
-        return $this;
-    }
-
+    private ?FinfoMimeTypeDetector $mimeTypeDetector = null;
 
     /**
-     * Add a condition for path containing a substring.
-     *
-     * @param string|array $substrings
-     * @return $this
-     */
-    public function pathContains(string|array $substrings): self
-    {
-        $substrings = (array)$substrings;
-        $this->addCondition(fn(StorageAttributes $item) => array_reduce($substrings, fn($carry, $substring) => $carry || str_contains($item->path(), $substring), false));
-        return $this;
-    }
-
-    /**
-     * Add a condition for path not equal to a value.
-     *
-     * @param string|array $paths
-     * @return $this
-     */
-    public function pathNotEquals(string|array $paths): self
-    {
-        $paths = (array)$paths;
-        $this->addCondition(fn(StorageAttributes $item) => !in_array($item->path(), $paths));
-        return $this;
-    }
-
-    /**
-     * Add a condition for path not containing a substring.
-     *
-     * @param string|array $substrings
-     * @return $this
-     */
-    public function pathNotContains(string|array $substrings): self
-    {
-        $substrings = (array)$substrings;
-        $this->addCondition(fn(StorageAttributes $item) => array_reduce($substrings, fn($carry, $substring) => $carry && !str_contains($item->path(), $substring), true));
-        return $this;
-    }
-
-    /**
-     * Add a condition for exact filename match (without extension).
-     *
-     * @param string|array $filenames
-     * @return $this
-     */
-    public function filenameEquals(string|array $filenames): self
-    {
-        $filenames = (array)$filenames;
-        $this->addCondition(fn(StorageAttributes $item) => in_array(pathinfo($item->path(), PATHINFO_FILENAME), $filenames));
-        return $this;
-    }
-
-    /**
-     * Add a condition for filename not equal to a value (without extension).
-     *
-     * @param string|array $filenames
-     * @return $this
-     */
-    public function filenameNotEquals(string|array $filenames): self
-    {
-        $filenames = (array)$filenames;
-        $this->addCondition(fn(StorageAttributes $item) => !in_array(pathinfo($item->path(), PATHINFO_FILENAME), $filenames));
-        return $this;
-    }
-
-    /**
-     * Add a condition for filename containing a substring (without extension).
-     *
-     * @param string|array $substrings
-     * @return $this
-     */
-    public function filenameContains(string|array $substrings): self
-    {
-        $substrings = (array)$substrings;
-        $this->addCondition(fn(StorageAttributes $item) => array_reduce($substrings, fn($carry, $substring) => $carry || str_contains(pathinfo($item->path(), PATHINFO_FILENAME), $substring), false));
-        return $this;
-    }
-
-    /**
-     * Add a condition for filename not containing a substring (without extension).
-     *
-     * @param string|array $substrings
-     * @return $this
-     */
-    public function filenameNotContains(string|array $substrings): self
-    {
-        $substrings = (array)$substrings;
-        $this->addCondition(fn(StorageAttributes $item) => array_reduce($substrings, fn($carry, $substring) => $carry && !str_contains(pathinfo($item->path(), PATHINFO_FILENAME), $substring), true));
-        return $this;
-    }
-
-    /**
-     * Add a condition to filter by filename matching a regex pattern.
-     *
-     * @param string $pattern
-     * @return $this
-     */
-    public function filenameMatchesRegex(string $pattern): self
-    {
-        $this->addCondition(fn(StorageAttributes $item) => preg_match($pattern, pathinfo($item->path(), PATHINFO_FILENAME)));
-        return $this;
-    }
-
-
-    /**
-     * Add a condition for exact basename match (with extension).
-     *
-     * @param string|array $basename
-     * @return $this
-     */
-    public function basenameEquals(string|array $basename): self
-    {
-        $basename = (array)$basename;
-        $this->addCondition(fn(StorageAttributes $item) => in_array(basename($item->path()), $basename));
-        return $this;
-    }
-
-    /**
-     * Add a condition for basename not equal to a value (with extension).
-     *
-     * @param string|array $basename
-     * @return $this
-     */
-    public function basenameNotEquals(string|array $basename): self
-    {
-        $basename = (array)$basename;
-        $this->addCondition(fn(StorageAttributes $item) => !in_array(basename($item->path()), $basename));
-        return $this;
-    }
-
-    /**
-     * Add a condition for basename containing a substring (with extension).
-     *
-     * @param string|array $substrings
-     * @return $this
-     */
-    public function basenameContains(string|array $substrings): self
-    {
-        $substrings = (array)$substrings;
-        $this->addCondition(fn(StorageAttributes $item) => array_reduce($substrings, fn($carry, $substring) => $carry || str_contains(basename($item->path()), $substring), false));
-        return $this;
-    }
-
-    /**
-     * Add a condition for basename not containing a substring (with extension).
-     *
-     * @param string|array $substrings
-     * @return $this
-     */
-    public function basenameNotContains(string|array $substrings): self
-    {
-        $substrings = (array)$substrings;
-        $this->addCondition(fn(StorageAttributes $item) => array_reduce($substrings, fn($carry, $substring) => $carry && !str_contains(basename($item->path()), $substring), true));
-        return $this;
-    }
-
-
-    /**
-     * Add a condition for exact extension match.
-     *
-     * @param string|array $extensions
-     * @return $this
-     */
-    public function extensionEquals(string|array $extensions): self
-    {
-        $extensions = array_map('strtolower', (array)$extensions);
-        $this->addCondition(fn(StorageAttributes $item) => in_array(strtolower($this->getExtension($item->path())), $extensions, true));
-        return $this;
-    }
-
-    /**
-     * Add a condition for extension not equal to a value.
-     *
-     * @param string|array $extensions
-     * @return $this
-     */
-    public function extensionNotEquals(string|array $extensions): self
-    {
-        $extensions = array_map('strtolower', (array)$extensions);
-        $this->addCondition(fn(StorageAttributes $item) => !in_array(strtolower($this->getExtension($item->path())), $extensions, true));
-        return $this;
-    }
-
-    /**
-     * Add a condition for extension containing a substring.
-     *
-     * @param string|array $substrings
-     * @return $this
-     */
-    public function extensionContains(string|array $substrings): self
-    {
-        $substrings = array_map('strtolower', (array)$substrings);
-        $this->addCondition(fn(StorageAttributes $item) => array_reduce($substrings, fn($carry, $substring) => $carry || str_contains(strtolower($this->getExtension($item->path()) ?? ''), $substring), false));
-        return $this;
-    }
-
-    /**
-     * Add a condition for extension not containing a substring.
-     *
-     * @param string|array $substrings
-     * @return $this
-     */
-    public function extensionNotContains(string|array $substrings): self
-    {
-        $substrings = array_map('strtolower', (array)$substrings);
-        $this->addCondition(fn(StorageAttributes $item) => array_reduce($substrings, fn($carry, $substring) => $carry && !str_contains(strtolower($this->getExtension($item->path()) ?? ''), $substring), true));
-        return $this;
-    }
-
-    /**
-     * Add a condition to filter by MIME type(s) determined by the extension.
-     *
-     * @param string|array $mimeTypes
-     * @return $this
-     */
-
-
-    /**
-     * Add a condition for file size equals.
-     *
-     * @param int|string $size
-     * @return $this
-     */
-    public function sizeEquals(int|string $size): self
-    {
-        $sizeInBytes = $this->parseSize($size);
-        $this->addCondition(function (StorageAttributes $item) use ($sizeInBytes) {
-            if (!$item instanceof FileAttributes || $item->fileSize() === null) {
-                return false;
-            }
-            return $item->fileSize() === $sizeInBytes;
-        });
-        return $this;
-    }
-
-    /**
-     * Add a condition for file size not equals.
-     *
-     * @param int|string $size
-     * @return $this
-     */
-    public function sizeNotEquals(int|string $size): self
-    {
-        $sizeInBytes = $this->parseSize($size);
-        $this->addCondition(function (StorageAttributes $item) use ($sizeInBytes) {
-            if (!$item instanceof FileAttributes || $item->fileSize() === null) {
-                return false;
-            }
-            return $item->fileSize() !== $sizeInBytes;
-        });
-        return $this;
-    }
-
-    /**
-     * Add a condition for file size greater than.
-     *
-     * @param int|string $size
-     * @return $this
-     */
-    public function sizeGt(int|string $size): self
-    {
-        $sizeInBytes = $this->parseSize($size);
-        $this->addCondition(function (StorageAttributes $item) use ($sizeInBytes) {
-            if (!$item instanceof FileAttributes || $item->fileSize() === null) {
-                return false;
-            }
-            return $item->fileSize() > $sizeInBytes;
-        });
-        return $this;
-    }
-
-
-    /**
-     * Add a condition for file size greater than or equals.
-     *
-     * @param int|string $size
-     * @return $this
-     */
-    public function sizeGte(int|string $size): self
-    {
-        $sizeInBytes = $this->parseSize($size);
-        $this->addCondition(function (StorageAttributes $item) use ($sizeInBytes) {
-            if (!$item instanceof FileAttributes || $item->fileSize() === null) {
-                return false;
-            }
-            return $item->fileSize() >= $sizeInBytes;
-        });
-        return $this;
-    }
-
-
-    /**
-     * Add a condition for file size less than.
-     *
-     * @param int|string $size
-     * @return $this
-     */
-    public function sizeLt(int|string $size): self
-    {
-        $sizeInBytes = $this->parseSize($size);
-        $this->addCondition(function (StorageAttributes $item) use ($sizeInBytes) {
-            if (!$item instanceof FileAttributes || $item->fileSize() === null) {
-                return false;
-            }
-            return $item->fileSize() < $sizeInBytes;
-        });
-        return $this;
-    }
-
-
-    /**
-     * Add a condition for file size less than or equals.
-     *
-     * @param int|string $size
-     * @return $this
-     */
-    public function sizeLte(int|string $size): self
-    {
-        $sizeInBytes = $this->parseSize($size);
-        $this->addCondition(function (StorageAttributes $item) use ($sizeInBytes) {
-            if (!$item instanceof FileAttributes || $item->fileSize() === null) {
-                return false;
-            }
-            return $item->fileSize() <= $sizeInBytes;
-        });
-        return $this;
-    }
-
-    /**
-     * Add a condition to filter by size range.
-     *
-     * @param int|string $min
-     * @param int|string $max
-     * @return $this
-     */
-    public function sizeBetween(int|string $min, int|string $max): self
-    {
-        $minBytes = $this->parseSize($min);
-        $maxBytes = $this->parseSize($max);
-        $this->addCondition(function (StorageAttributes $item) use ($minBytes, $maxBytes) {
-            if (!$item instanceof FileAttributes || $item->fileSize() === null) {
-                return false;
-            }
-            return $item->fileSize() >= $minBytes && $item->fileSize() <= $maxBytes;
-        });
-        return $this;
-    }
-
-    /**
-     * Add a condition to filter items matching specific MIME types.
-     *
-     * This method filters items whose MIME type exactly matches any of the specified types.
-     * The MIME type is determined based on the file path using the configured MIME type detector.
-     *
-     * @param string|array $mimeTypes One or more MIME types to match (e.g., 'image/png', 'application/pdf').
-     * @return $this
-     */
-    public function mimeTypeEquals(string|array $mimeTypes): self
-    {
-        $mimeTypes = (array) $mimeTypes;
-
-        $this->addCondition(function (StorageAttributes $item) use ($mimeTypes) {
-            $mimeType = $this->getMimeTypeFromPath($item->path());
-
-            return $mimeType !== null && in_array($mimeType, $mimeTypes, true);
-        });
-
-        return $this;
-    }
-
-
-    /**
-     * Add a condition to filter items whose MIME type contains specified substrings.
-     *
-     * This method filters items whose MIME type includes any of the provided substrings.
-     * The MIME type is determined based on the file path using the configured MIME type detector.
-     *
-     * @param string|array $substrings One or more substrings to search for within the MIME type (e.g., 'image', 'text').
-     * @return $this
-     */
-    public function mimeTypeContains(string|array $substrings): self
-    {
-        return $this->filterMimeTypeContains((array) $substrings, false);
-    }
-
-    /**
-     * Add a condition to filter items whose MIME type does not contain specified substrings.
-     *
-     * This method filters items whose MIME type does not include any of the provided substrings.
-     * The MIME type is determined based on the file path using the configured MIME type detector.
-     *
-     * @param string|array $substrings One or more substrings to ensure are not present within the MIME type (e.g., 'application', 'video').
-     * @return $this
-     */
-    public function mimeTypeNotContains(string|array $substrings): self
-    {
-        return $this->filterMimeTypeContains((array) $substrings, true);
-    }
-
-    public function mimeTypeNotEquals(string|array $mimeTypes): self
-    {
-        $mimeTypes = (array) $mimeTypes;
-
-        $this->addCondition(function (StorageAttributes $item) use ($mimeTypes) {
-            $mimeType = $this->getMimeTypeFromPath($item->path());
-            return $mimeType === null || !in_array($mimeType, $mimeTypes, true);
-        });
-
-        return $this;
-    }
-
-    /**
-     * Add a condition for items last modified before a timestamp.
-     *
-     * @param int|Carbon $timestamp
-     * @return $this
-     */
-    public function lastModifiedBefore(int|Carbon $timestamp): self
-    {
-        $timestampValue = $timestamp instanceof Carbon ? $timestamp->timestamp : $timestamp;
-        $this->addCondition(fn(StorageAttributes $item) => $item->lastModified() !== null && $item->lastModified() < $timestampValue);
-        return $this;
-    }
-
-    /**
-     * Add a condition for items last modified after a timestamp.
-     *
-     * @param int|Carbon $timestamp
-     * @return $this
-     */
-    public function lastModifiedAfter(int|Carbon $timestamp): self
-    {
-        $timestampValue = $timestamp instanceof Carbon ? $timestamp->timestamp : $timestamp;
-        $this->addCondition(fn(StorageAttributes $item) => $item->lastModified() !== null && $item->lastModified() > $timestampValue);
-        return $this;
-    }
-
-    /**
-     * Add a condition for items last modified between two timestamps.
-     *
-     * @param int|Carbon $start
-     * @param int|Carbon $end
-     * @return $this
-     */
-    public function lastModifiedBetween(int|Carbon $start, int|Carbon $end): self
-    {
-        $startTimestamp = $start instanceof Carbon ? $start->timestamp : $start;
-        $endTimestamp = $end instanceof Carbon ? $end->timestamp : $end;
-        $this->addCondition(fn(StorageAttributes $item) => $item->lastModified() !== null && $item->lastModified() >= $startTimestamp && $item->lastModified() <= $endTimestamp);
-        return $this;
-    }
-
-
-    /**
-     * Add a condition to filter for public visibility.
-     *
-     * @return $this
-     */
-    public function isPublic(): self
-    {
-        $this->addCondition(fn(StorageAttributes $item) => $item->visibility() === 'public');
-        return $this;
-    }
-
-    /**
-     * Add a condition to filter for private visibility.
-     *
-     * @return $this
-     */
-    public function isPrivate(): self
-    {
-        $this->addCondition(fn(StorageAttributes $item) => $item->visibility() === 'private');
-        return $this;
-    }
-
-
-    /**
-     * Logical AND.
+     * Adds a logical AND between conditions.
      *
      * @return $this
      */
@@ -553,7 +76,7 @@ class FilterBuilder
     }
 
     /**
-     * Logical OR.
+     * Adds a logical OR between conditions.
      *
      * @return $this
      */
@@ -565,7 +88,7 @@ class FilterBuilder
     }
 
     /**
-     * Start a group of conditions.
+     * Starts a grouped condition block (e.g. parenthesis).
      *
      * @return $this
      */
@@ -582,9 +105,10 @@ class FilterBuilder
     }
 
     /**
-     * End a group of conditions.
+     * Ends a grouped condition block.
      *
      * @return $this
+     * @throws LogicException if there is no matching group_start
      */
     public function group_end(): self
     {
@@ -599,14 +123,14 @@ class FilterBuilder
     }
 
     /**
-     * Evaluate if an item matches all conditions.
+     * Evaluates whether a given Flysystem StorageAttributes object matches the built filter.
      *
      * @param StorageAttributes $item
      * @return bool
+     * @throws LogicException if groupings are unbalanced
      */
     public function matches(StorageAttributes $item): bool
     {
-        // If no conditions have been added, return true
         if (empty($this->currentGroup)) {
             return true;
         }
@@ -632,11 +156,11 @@ class FilterBuilder
         return eval("return $expression;");
     }
 
-
     /**
-     * Add a condition to the current group.
+     * Adds a new condition to the expression stack.
      *
      * @param callable $condition
+     * @return void
      */
     private function addCondition(callable $condition): void
     {
@@ -649,11 +173,11 @@ class FilterBuilder
     }
 
     /**
-     * Validate and convert size to bytes.
+     * Parses human-readable size values (e.g. "10K", "1G") into bytes.
      *
      * @param int|string $size
      * @return int
-     * @throws LogicException If the size format is invalid.
+     * @throws LogicException
      */
     private function parseSize(int|string $size): int
     {
@@ -666,11 +190,11 @@ class FilterBuilder
             $unit = strtoupper($matches[2]);
 
             return match ($unit) {
-                'B' => $value,                      // Byte
-                'K' => $value * 1024,               // Kilobyte
-                'M' => $value * 1024 ** 2,          // Megabyte
-                'G' => $value * 1024 ** 3,          // Gigabyte
-                'T' => $value * 1024 ** 4,          // Terabyte
+                'B' => $value,
+                'K' => $value * 1024,
+                'M' => $value * 1024 ** 2,
+                'G' => $value * 1024 ** 3,
+                'T' => $value * 1024 ** 4,
                 default => throw new LogicException("Invalid unit: $unit"),
             };
         }
@@ -679,7 +203,7 @@ class FilterBuilder
     }
 
     /**
-     * Get the extension of a file from its path.
+     * Returns the extension part of the given path.
      *
      * @param string $path
      * @return string|null
@@ -691,7 +215,7 @@ class FilterBuilder
     }
 
     /**
-     * Get mime-type by extension
+     * Detects MIME type based on file extension using league/mime-type-detection.
      *
      * @param string $path
      * @return string|null
@@ -705,6 +229,24 @@ class FilterBuilder
         return $this->mimeTypeDetector->detectMimeTypeFromPath($path);
     }
 
+    /**
+     * Counts the number of path segments (i.e., depth).
+     *
+     * @param string $path
+     * @return int
+     */
+    private function calculateDepth(string $path): int
+    {
+        return substr_count(trim($path, '/'), '/');
+    }
+
+    /**
+     * Adds a condition to check if a MIME type contains or does not contain specific substrings.
+     *
+     * @param array $substrings
+     * @param bool $negate Whether to negate the match result.
+     * @return $this
+     */
     private function filterMimeTypeContains(array $substrings, bool $negate): self
     {
         $this->addCondition(function (StorageAttributes $item) use ($substrings, $negate) {
@@ -725,7 +267,4 @@ class FilterBuilder
 
         return $this;
     }
-
-
-
 }

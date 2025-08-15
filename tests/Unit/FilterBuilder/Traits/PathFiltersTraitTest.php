@@ -1,6 +1,6 @@
 <?php
 
-namespace FilterBuilder\Attributes;
+namespace FilterBuilder\Traits;
 
 use League\Flysystem\StorageAttributes;
 use Marktaborosi\FlysystemFilter\FilterBuilder;
@@ -14,7 +14,7 @@ use PHPUnit\Framework\TestCase;
  * These tests cover direct path matching, substring checks, exclusions,
  * and regular expression-based path filters.
  */
-class PathTest extends TestCase
+class PathFiltersTraitTest extends TestCase
 {
     /**
      * Test filtering by exact path match.
@@ -95,4 +95,72 @@ class PathTest extends TestCase
 
         $this->assertTrue($filter->matches($item));
     }
+
+    /**
+     * Test that pathStartsWith matches when the path starts with a given prefix.
+     *
+     * @throws Exception
+     */
+    public function test_path_starts_with()
+    {
+        $filter = new FilterBuilder();
+        $filter->pathStartsWith(['/logs', '/var']);
+
+        $item = $this->createMock(StorageAttributes::class);
+        $item->method('path')->willReturn('/logs/2024/app.log');
+
+        $this->assertTrue($filter->matches($item));
+    }
+
+    /**
+     * Test that pathStartsWith does not match when the path does not start with any given prefix.
+     *
+     * @throws Exception
+     */
+    public function test_path_starts_with_negative()
+    {
+        $filter = new FilterBuilder();
+        $filter->pathStartsWith(['/data', '/config']);
+
+        $item = $this->createMock(StorageAttributes::class);
+        $item->method('path')->willReturn('/logs/2024/app.log');
+
+        $this->assertFalse($filter->matches($item));
+    }
+
+    /**
+     * Test that pathEndsWith matches when the path ends with a given suffix.
+     *
+     * @throws Exception
+     */
+    public function test_path_ends_with()
+    {
+        $filter = new FilterBuilder();
+        $filter->pathEndsWith(['error.log', 'access.log']);
+
+        $item = $this->createMock(StorageAttributes::class);
+        $item->method('path')->willReturn('/var/log/nginx/error.log');
+
+        $this->assertTrue($filter->matches($item));
+    }
+
+    /**
+     * Test that pathEndsWith does not match when the path does not end with any given suffix.
+     *
+     * @throws Exception
+     */
+    public function test_path_ends_with_negative()
+    {
+        $filter = new FilterBuilder();
+        $filter->pathEndsWith(['.json', '.csv']);
+
+        $item = $this->createMock(StorageAttributes::class);
+        $item->method('path')->willReturn('/exports/data/report.txt');
+
+        $this->assertFalse($filter->matches($item));
+    }
+
+
+
+
 }

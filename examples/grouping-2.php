@@ -44,7 +44,8 @@ $filter
     ->sizeLt("1G");
 
 //Filtered results after applying the filter to the filesystem contents.
-$filteredResults = FlysystemFilter::filter($flysystemContents, $filter);
+$flysystemFilter = new FlysystemFilter();
+$filteredResults =$flysystemFilter->filter($flysystemContents, $filter);
 
 // Output the filtered results for debugging
 // Number of items should be 3

@@ -26,7 +26,8 @@ $filter = new FilterBuilder();
 $filter->isFile(); // Filter for files only
 
 //Filtered results after applying the filter to the filesystem contents.
-$filteredResults = FlysystemFilter::filter($flysystemContents, $filter);
+$flysystemFilter = new FlysystemFilter();
+$filteredResults =$flysystemFilter->filter($flysystemContents, $filter);
 
 // Output the filtered results for debugging
 // Number of items should be 4

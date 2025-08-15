@@ -1,6 +1,6 @@
 <?php
 
-namespace FilterBuilder\Attributes;
+namespace FilterBuilder\Traits;
 
 use League\Flysystem\DirectoryAttributes;
 use League\Flysystem\FileAttributes;
@@ -15,7 +15,7 @@ use PHPUnit\Framework\TestCase;
  * These tests ensure that `isFile()` and `isDirectory()` correctly differentiate
  * between FileAttributes and DirectoryAttributes provided by Flysystem.
  */
-class FileDirectoryTest extends TestCase
+class FileTypeFiltersTraitTest extends TestCase
 {
     /**
      * Test that the filter correctly matches only files using `isFile()`.
