@@ -1,41 +1,49 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Marktaborosi\FlysystemFilter\Traits;
 
-use League\Flysystem\FileAttributes;
-use League\Flysystem\DirectoryAttributes;
-use League\Flysystem\StorageAttributes;
+use Marktaborosi\FlysystemFilter\Condition\Condition;
+use Marktaborosi\FlysystemFilter\Condition\IsDirectory;
+use Marktaborosi\FlysystemFilter\Condition\IsFile;
+use Marktaborosi\FlysystemFilter\Condition\IsHidden;
 use Marktaborosi\FlysystemFilter\FilterBuilder;
 
 /**
- * Trait FileTypeFiltersTrait
+ * Filters on the kind of entry.
  *
- * Provides methods to filter Flysystem items by type: file or directory.
- * This is based on instance checks against FileAttributes or DirectoryAttributes.
- *
- * @package Marktaborosi\FlysystemFilter\Traits
+ * @internal used by {@see FilterBuilder}
  */
 trait FileTypeFiltersTrait
 {
     /**
-     * Filter only items that are files.
-     *
-     * @return FilterBuilder|FileTypeFiltersTrait
+     * @internal implemented by {@see FilterBuilder}
      */
-    public function isFile(): self
+    abstract protected function push(Condition $condition): static;
+
+    /**
+     * File entries.
+     */
+    public function isFile(): static
     {
-        $this->addCondition(fn(StorageAttributes $item) => $item instanceof FileAttributes);
-        return $this;
+        return $this->push(new IsFile());
     }
 
     /**
-     * Filter only items that are directories.
-     *
-     * @return FilterBuilder|FileTypeFiltersTrait
+     * Directory entries.
      */
-    public function isDirectory(): self
+    public function isDirectory(): static
     {
-        $this->addCondition(fn(StorageAttributes $item) => $item instanceof DirectoryAttributes);
-        return $this;
+        return $this->push(new IsDirectory());
+    }
+
+    /**
+     * Dot entries (`.env`, `.git`) and everything inside dot directories (`.git/config`).
+     * Use `->not()->isHidden()` to skip them.
+     */
+    public function isHidden(): static
+    {
+        return $this->push(new IsHidden());
     }
 }

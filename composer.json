@@ -1,64 +1,94 @@
 {
-  "name": "marktaborosi/flysystem-filter",
-  "type": "library",
-  "license": "MIT",
-  "description": "A lightweight filtering layer and an easy-to-use filter builder for League/Flysystem filesystem contents.",
-  "minimum-stability": "stable",
-  "autoload": {
-    "psr-4": {
-      "Marktaborosi\\FlysystemFilter\\": "src/",
-      "Marktaborosi\\FlysystemFilter\\Tests\\": "tests/"
+    "name": "marktaborosi/flysystem-filter",
+    "type": "library",
+    "license": "MIT",
+    "description": "A fluent, expressive filter builder for League/Flysystem directory listings — with grouping, negation, globs, serialization and Laravel support.",
+    "keywords": [
+        "flysystem",
+        "filter",
+        "filesystem",
+        "filter-builder",
+        "glob",
+        "laravel",
+        "league-flysystem",
+        "filesystem-filter"
+    ],
+    "homepage": "https://github.com/marktaborosi/flysystem-filter",
+    "support": {
+        "issues": "https://github.com/marktaborosi/flysystem-filter/issues",
+        "source": "https://github.com/marktaborosi/flysystem-filter"
+    },
+    "authors": [
+        {
+            "name": "Mark Taborosi",
+            "email": "mark.taborosi@gmail.com",
+            "role": "Developer"
+        }
+    ],
+    "require": {
+        "php": "^8.2",
+        "league/flysystem": "^3.29",
+        "league/mime-type-detection": "^1.16"
+    },
+    "require-dev": {
+        "friendsofphp/php-cs-fixer": "^3.64",
+        "nesbot/carbon": "^2.72 || ^3.0",
+        "orchestra/testbench": "^9.0 || ^10.0 || ^11.0",
+        "phpstan/phpstan": "^2.1",
+        "phpstan/phpstan-phpunit": "^2.0",
+        "phpstan/phpstan-strict-rules": "^2.0",
+        "phpunit/phpunit": "^11.5 || ^12.0",
+        "rector/rector": "^2.0"
+    },
+    "suggest": {
+        "illuminate/support": "Laravel 11, 12 or 13: enables the auto-discovered service provider and the FlysystemFilter facade"
+    },
+    "autoload": {
+        "psr-4": {
+            "Marktaborosi\\FlysystemFilter\\": "src/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "Marktaborosi\\FlysystemFilter\\Tests\\": "tests/"
+        }
+    },
+    "extra": {
+        "laravel": {
+            "providers": [
+                "Marktaborosi\\FlysystemFilter\\Laravel\\FlysystemFilterServiceProvider"
+            ],
+            "aliases": {
+                "FlysystemFilter": "Marktaborosi\\FlysystemFilter\\Laravel\\FlysystemFilterFacade"
+            }
+        }
+    },
+    "config": {
+        "sort-packages": true
+    },
+    "minimum-stability": "stable",
+    "prefer-stable": true,
+    "scripts": {
+        "test": "phpunit",
+        "analyse": "phpstan analyse --memory-limit=1G",
+        "cs": "php-cs-fixer fix --dry-run --diff",
+        "cs:fix": "php-cs-fixer fix",
+        "rector": "rector process --dry-run",
+        "rector:fix": "rector process",
+        "check": [
+            "@cs",
+            "@rector",
+            "@analyse",
+            "@test"
+        ]
+    },
+    "scripts-descriptions": {
+        "test": "Run the PHPUnit test suite",
+        "analyse": "Run PHPStan",
+        "cs": "Check coding style (PHP-CS-Fixer, dry run)",
+        "cs:fix": "Fix coding style",
+        "rector": "Check for Rector upgrades (dry run)",
+        "rector:fix": "Apply Rector upgrades",
+        "check": "Run every quality check"
     }
-  },
-  "autoload-dev": {
-    "psr-4": {
-      "Marktaborosi\\FlysystemFilter\\Tests\\": "tests/"
-    }
-  },
-  "authors": [
-    {
-      "name": "Mark Taborosi",
-      "email": "mark.taborosi@gmail.com",
-      "role": "Developer"
-    }
-  ],
-  "require": {
-    "php": ">=8.2",
-    "league/flysystem": "^3.29",
-    "league/mime-type-detection": "^1.16",
-    "illuminate/support": "^11.41",
-    "nesbot/carbon": "^3.10"
-  },
-  "require-dev": {
-    "symfony/var-dumper": "^7.2",
-    "phpunit/phpunit": "^11.5",
-    "orchestra/testbench": "^9.13"
-  },
-  "extra": {
-    "laravel": {
-      "providers": [
-        "Marktaborosi\\FlysystemFilter\\Laravel\\FlysystemFilterServiceProvider"
-      ],
-      "aliases": {
-        "FlysystemFilter": "Marktaborosi\\FlysystemFilter\\Laravel\\FlysystemFilterFacade"
-      }
-    }
-  },
-  "scripts": {
-    "test": "phpunit"
-  },
-  "keywords": [
-    "flysystem",
-    "filter",
-    "filesystem",
-    "filter-builder",
-    "php",
-    "league-flysystem",
-    "filesystem-filter"
-  ],
-  "homepage": "https://github.com/marktaborosi/flysystem-filter",
-  "support": {
-    "issues": "https://github.com/marktaborosi/flysystem-filter/issues",
-    "source": "https://github.com/marktaborosi/flysystem-filter"
-  }
 }

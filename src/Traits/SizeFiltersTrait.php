@@ -1,134 +1,116 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Marktaborosi\FlysystemFilter\Traits;
 
-use League\Flysystem\FileAttributes;
-use League\Flysystem\StorageAttributes;
+use Marktaborosi\FlysystemFilter\Condition\AllOf;
+use Marktaborosi\FlysystemFilter\Condition\Comparison;
+use Marktaborosi\FlysystemFilter\Condition\Condition;
+use Marktaborosi\FlysystemFilter\Condition\SizeCondition;
+use Marktaborosi\FlysystemFilter\Exception\InvalidArgumentException;
 use Marktaborosi\FlysystemFilter\FilterBuilder;
+use Marktaborosi\FlysystemFilter\Support\Size;
 
 /**
- * Trait SizeFiltersTrait
+ * Filters on the file size.
  *
- * Provides filtering methods based on file size, using the `fileSize()` metadata
- * from Flysystem's `FileAttributes`.
+ * Sizes are bytes (`1024`) or strings with a binary unit: `'512B'`, `'10K'`, `'10KB'`,
+ * `'10KiB'`, `'1.5M'`, `'2 GB'`, `'1T'`. Invalid sizes throw immediately.
  *
- * Filters accept either byte values as integers, or human-readable strings with units:
- * - `'512B'`, `'2K'`, `'5M'`, `'1G'`, `'3T'`, etc.
+ * Only files with a **known** size match: directories and files whose size the adapter
+ * did not report never match a size filter (not even `sizeNotEquals()`).
  *
- * Non-file entries (e.g., directories) are automatically excluded.
- *
- * This trait is designed to be used with {@see \Marktaborosi\FlysystemFilter\FilterBuilder}.
- *
- * @package Marktaborosi\FlysystemFilter\Traits
+ * @internal used by {@see FilterBuilder}
  */
 trait SizeFiltersTrait
 {
     /**
-     * Filter files with an exact size in bytes.
-     *
-     * @param int|string $size Size to match (e.g., `1024` or `'1K'`).
-     * @return FilterBuilder|SizeFiltersTrait
+     * @internal implemented by {@see FilterBuilder}
      */
-    public function sizeEquals(int|string $size): self
+    abstract protected function push(Condition $condition): static;
+
+    /**
+     * @throws InvalidArgumentException for an invalid size
+     */
+    public function sizeEquals(int|string $size): static
     {
-        $sizeInBytes = $this->parseSize($size);
-        $this->addCondition(function (StorageAttributes $item) use ($sizeInBytes) {
-            return $item instanceof FileAttributes && $item->fileSize() === $sizeInBytes;
-        });
-        return $this;
+        return $this->push(new SizeCondition(Comparison::Equal, Size::toBytes($size)));
     }
 
     /**
-     * Filter files that do not have the specified size.
-     *
-     * @param int|string $size Size to exclude.
-     * @return FilterBuilder|SizeFiltersTrait
+     * @throws InvalidArgumentException for an invalid size
      */
-    public function sizeNotEquals(int|string $size): self
+    public function sizeNotEquals(int|string $size): static
     {
-        $sizeInBytes = $this->parseSize($size);
-        $this->addCondition(function (StorageAttributes $item) use ($sizeInBytes) {
-            return $item instanceof FileAttributes && $item->fileSize() !== $sizeInBytes;
-        });
-        return $this;
+        return $this->push(new SizeCondition(Comparison::NotEqual, Size::toBytes($size)));
     }
 
     /**
-     * Filter files with a size greater than the specified value.
+     * Larger than the size (exclusive).
      *
-     * @param int|string $size Minimum size (exclusive).
-     * @return FilterBuilder|SizeFiltersTrait
+     * @throws InvalidArgumentException for an invalid size
      */
-    public function sizeGt(int|string $size): self
+    public function sizeGt(int|string $size): static
     {
-        $sizeInBytes = $this->parseSize($size);
-        $this->addCondition(function (StorageAttributes $item) use ($sizeInBytes) {
-            return $item instanceof FileAttributes && $item->fileSize() > $sizeInBytes;
-        });
-        return $this;
+        return $this->push(new SizeCondition(Comparison::GreaterThan, Size::toBytes($size)));
     }
 
     /**
-     * Filter files with a size greater than or equal to the specified value.
+     * At least the size (inclusive).
      *
-     * @param int|string $size Minimum size (inclusive).
-     * @return FilterBuilder|SizeFiltersTrait
+     * @throws InvalidArgumentException for an invalid size
      */
-    public function sizeGte(int|string $size): self
+    public function sizeGte(int|string $size): static
     {
-        $sizeInBytes = $this->parseSize($size);
-        $this->addCondition(function (StorageAttributes $item) use ($sizeInBytes) {
-            return $item instanceof FileAttributes && $item->fileSize() >= $sizeInBytes;
-        });
-        return $this;
+        return $this->push(new SizeCondition(Comparison::GreaterThanOrEqual, Size::toBytes($size)));
     }
 
     /**
-     * Filter files with a size less than the specified value.
+     * Smaller than the size (exclusive).
      *
-     * @param int|string $size Maximum size (exclusive).
-     * @return FilterBuilder|SizeFiltersTrait
+     * @throws InvalidArgumentException for an invalid size
      */
-    public function sizeLt(int|string $size): self
+    public function sizeLt(int|string $size): static
     {
-        $sizeInBytes = $this->parseSize($size);
-        $this->addCondition(function (StorageAttributes $item) use ($sizeInBytes) {
-            return $item instanceof FileAttributes && $item->fileSize() < $sizeInBytes;
-        });
-        return $this;
+        return $this->push(new SizeCondition(Comparison::LessThan, Size::toBytes($size)));
     }
 
     /**
-     * Filter files with a size less than or equal to the specified value.
+     * At most the size (inclusive).
      *
-     * @param int|string $size Maximum size (inclusive).
-     * @return FilterBuilder|SizeFiltersTrait
+     * @throws InvalidArgumentException for an invalid size
      */
-    public function sizeLte(int|string $size): self
+    public function sizeLte(int|string $size): static
     {
-        $sizeInBytes = $this->parseSize($size);
-        $this->addCondition(function (StorageAttributes $item) use ($sizeInBytes) {
-            return $item instanceof FileAttributes && $item->fileSize() <= $sizeInBytes;
-        });
-        return $this;
+        return $this->push(new SizeCondition(Comparison::LessThanOrEqual, Size::toBytes($size)));
     }
 
     /**
-     * Filter files within a specific size range (inclusive).
+     * Within the range, both ends inclusive, e.g. `sizeBetween('500K', '5M')`.
      *
-     * @param int|string $min Minimum size (e.g., `'500K'`).
-     * @param int|string $max Maximum size (e.g., `'5M'`).
-     * @return FilterBuilder|SizeFiltersTrait
+     * @throws InvalidArgumentException for an invalid size or when min > max
      */
-    public function sizeBetween(int|string $min, int|string $max): self
+    public function sizeBetween(int|string $min, int|string $max): static
     {
-        $minBytes = $this->parseSize($min);
-        $maxBytes = $this->parseSize($max);
-        $this->addCondition(function (StorageAttributes $item) use ($minBytes, $maxBytes) {
-            return $item instanceof FileAttributes &&
-                $item->fileSize() >= $minBytes &&
-                $item->fileSize() <= $maxBytes;
-        });
-        return $this;
+        $minBytes = Size::toBytes($min);
+        $maxBytes = Size::toBytes($max);
+
+        if ($minBytes > $maxBytes) {
+            throw new InvalidArgumentException(\sprintf('sizeBetween(): the minimum (%d B) is larger than the maximum (%d B).', $minBytes, $maxBytes));
+        }
+
+        return $this->push(new AllOf(
+            new SizeCondition(Comparison::GreaterThanOrEqual, $minBytes),
+            new SizeCondition(Comparison::LessThanOrEqual, $maxBytes),
+        ));
+    }
+
+    /**
+     * Files with a size of 0 bytes.
+     */
+    public function isEmptyFile(): static
+    {
+        return $this->push(new SizeCondition(Comparison::Equal, 0));
     }
 }

@@ -1,115 +1,86 @@
 <?php
 
-namespace FilterBuilder\Traits;
+declare(strict_types=1);
 
+namespace Marktaborosi\FlysystemFilter\Tests\Unit\FilterBuilder\Traits;
+
+use Closure;
 use League\Flysystem\StorageAttributes;
+use League\MimeTypeDetection\MimeTypeDetector;
 use Marktaborosi\FlysystemFilter\FilterBuilder;
-use PHPUnit\Framework\MockObject\Exception;
+use Marktaborosi\FlysystemFilter\Tests\Support\Items;
+use PHPUnit\Framework\Attributes\DataProvider;
+use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
-use ReflectionClass;
-use ReflectionException;
 
-/**
- * Class MimeTypeTest
- *
- * Unit tests for mime type related filtering in the FilterBuilder.
- * Uses reflection to test MIME type detection based on file path,
- * simulating real scenarios without reading file contents.
- */
-class MimeTypeFiltersTraitTest extends TestCase
+final class MimeTypeFiltersTraitTest extends TestCase
 {
     /**
-     * Test that mimeTypeEquals correctly matches a file path's MIME type
-     * when the MIME type equals one of the given values.
-     *
-     * @return void
-     * @throws Exception|ReflectionException
+     * @return iterable<string, array{Closure(FilterBuilder): FilterBuilder, StorageAttributes, bool}>
      */
-    public function test_mime_type_equals()
+    public static function cases(): iterable
     {
-        $filter = new FilterBuilder();
-        $filter->mimeTypeEquals(['image/png', 'image/jpeg']);
-
-        $item = $this->createMock(StorageAttributes::class);
-        $item->method('path')->willReturn('path/to/image.png');
-
-        $reflection = new ReflectionClass($filter);
-        $method = $reflection->getMethod('getMimeTypeFromPath');
-
-        $mimeType = $method->invoke($filter, $item->path());
-
-        $this->assertTrue(in_array($mimeType, ['image/png', 'image/jpeg'], true));
+        yield 'equals' => [static fn(FilterBuilder $f) => $f->mimeTypeEquals('image/png'), Items::file('a.png'), true];
+        yield 'equals list' => [static fn(FilterBuilder $f) => $f->mimeTypeEquals(['application/pdf', 'text/plain']), Items::file('a.txt'), true];
+        yield 'equals is case-insensitive' => [static fn(FilterBuilder $f) => $f->mimeTypeEquals('IMAGE/PNG'), Items::file('a.png'), true];
+        yield 'equals no match' => [static fn(FilterBuilder $f) => $f->mimeTypeEquals('image/png'), Items::file('a.jpg'), false];
+        yield 'equals unknown' => [static fn(FilterBuilder $f) => $f->mimeTypeEquals('image/png'), Items::file('a.unknownext'), false];
+        yield 'not equals' => [static fn(FilterBuilder $f) => $f->mimeTypeNotEquals('application/zip'), Items::file('a.png'), true];
+        yield 'not equals excluded' => [static fn(FilterBuilder $f) => $f->mimeTypeNotEquals('application/zip'), Items::file('a.zip'), false];
+        yield 'not equals unknown matches' => [static fn(FilterBuilder $f) => $f->mimeTypeNotEquals('application/zip'), Items::file('a.unknownext'), true];
+        yield 'contains' => [static fn(FilterBuilder $f) => $f->mimeTypeContains(['image', 'video']), Items::file('a.mp4'), true];
+        yield 'not contains' => [static fn(FilterBuilder $f) => $f->mimeTypeNotContains('video'), Items::file('a.png'), true];
+        yield 'not contains excluded' => [static fn(FilterBuilder $f) => $f->mimeTypeNotContains('video'), Items::file('a.mp4'), false];
+        yield 'glob' => [static fn(FilterBuilder $f) => $f->mimeTypeMatches('image/*'), Items::file('a.webp'), true];
+        yield 'glob alternatives' => [static fn(FilterBuilder $f) => $f->mimeTypeMatches('application/{pdf,zip}'), Items::file('a.zip'), true];
+        yield 'is image' => [static fn(FilterBuilder $f) => $f->isImage(), Items::file('a.JPG'), true];
+        yield 'is image no' => [static fn(FilterBuilder $f) => $f->isImage(), Items::file('a.txt'), false];
+        yield 'is video' => [static fn(FilterBuilder $f) => $f->isVideo(), Items::file('a.mov'), true];
+        yield 'is audio' => [static fn(FilterBuilder $f) => $f->isAudio(), Items::file('a.mp3'), true];
+        yield 'is text' => [static fn(FilterBuilder $f) => $f->isText(), Items::file('a.csv'), true];
+        yield 'adapter metadata wins over extension' => [static fn(FilterBuilder $f) => $f->isImage(), Items::file('upload.bin', mimeType: 'image/png'), true];
+        yield 'directories have no MIME type' => [static fn(FilterBuilder $f) => $f->mimeTypeContains('image'), Items::dir('photos.jpg'), false];
     }
 
     /**
-     * Test that mimeTypeNotEquals correctly excludes a file path's MIME type
-     * if it matches one of the given types.
-     *
-     * @return void
-     * @throws Exception
-     * @throws ReflectionException
+     * @param Closure(FilterBuilder): FilterBuilder $build
      */
-    public function test_mime_type_not_equals()
+    #[Test]
+    #[DataProvider('cases')]
+    public function mime_type_filters(Closure $build, StorageAttributes $item, bool $expected): void
     {
-        $filter = new FilterBuilder();
-        $filter->mimeTypeNotEquals(['image/png', 'image/jpeg']);
-
-        $item = $this->createMock(StorageAttributes::class);
-        $item->method('path')->willReturn('path/to/document.pdf');
-
-        $reflection = new ReflectionClass($filter);
-        $method = $reflection->getMethod('getMimeTypeFromPath');
-
-        $mimeType = $method->invoke($filter, $item->path());
-
-        $this->assertFalse(in_array($mimeType, ['image/png', 'image/jpeg'], true));
+        self::assertSame($expected, $build(new FilterBuilder())->matches($item));
     }
 
-    /**
-     * Test that mimeTypeContains correctly matches MIME types
-     * that contain any of the specified substrings.
-     *
-     * @return void
-     * @throws Exception
-     * @throws ReflectionException
-     */
-    public function test_mime_type_contains()
+    #[Test]
+    public function custom_detector_can_be_injected(): void
     {
-        $filter = new FilterBuilder();
-        $filter->mimeTypeContains(['image', 'video']);
+        $detector = new class implements MimeTypeDetector {
+            public function detectMimeType(string $path, $contents): string
+            {
+                return 'application/x-custom';
+            }
 
-        $item = $this->createMock(StorageAttributes::class);
-        $item->method('path')->willReturn('path/to/photo.jpg');
+            public function detectMimeTypeFromBuffer(string $contents): string
+            {
+                return 'application/x-custom';
+            }
 
-        $reflection = new ReflectionClass($filter);
-        $method = $reflection->getMethod('getMimeTypeFromPath');
+            public function detectMimeTypeFromPath(string $path): string
+            {
+                return 'application/x-custom';
+            }
 
-        $mimeType = $method->invoke($filter, $item->path());
+            public function detectMimeTypeFromFile(string $path): string
+            {
+                return 'application/x-custom';
+            }
+        };
 
-        $this->assertTrue(str_contains($mimeType, 'image') || str_contains($mimeType, 'video'));
-    }
+        $filter = FilterBuilder::create($detector)->mimeTypeEquals('application/x-custom');
 
-    /**
-     * Test that mimeTypeNotContains correctly excludes MIME types
-     * that contain any of the specified substrings.
-     *
-     * @return void
-     * @throws Exception
-     * @throws ReflectionException
-     */
-    public function test_mime_type_not_contains()
-    {
-        $filter = new FilterBuilder();
-        $filter->mimeTypeNotContains(['image', 'video']);
-
-        $item = $this->createMock(StorageAttributes::class);
-        $item->method('path')->willReturn('path/to/data.json');
-
-        $reflection = new ReflectionClass($filter);
-        $method = $reflection->getMethod('getMimeTypeFromPath');
-
-        $mimeType = $method->invoke($filter, $item->path());
-
-        $this->assertFalse(str_contains($mimeType, 'image') || str_contains($mimeType, 'video'));
+        self::assertTrue($filter->matches(Items::file('a.txt')));
+        // the detector is inherited by nested groups
+        self::assertTrue(FilterBuilder::create($detector)->where(static fn(FilterBuilder $q) => $q->mimeTypeEquals('application/x-custom'))->matches(Items::file('a.txt')));
     }
 }

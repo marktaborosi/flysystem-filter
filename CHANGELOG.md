@@ -1,8 +1,71 @@
-
 # Changelog
 
 All notable changes to **Flysystem Filter** will be documented in this file.  
 This project adheres to [Semantic Versioning](https://semver.org).
+
+## [4.0.0] – 2026-11-23
+
+A rewrite of the evaluation core and a much smarter builder. See [UPGRADE.md](UPGRADE.md) for a step-by-step guide.
+
+### ⚠️ Breaking Changes
+- **Dependencies**: `illuminate/support` and `nesbot/carbon` are no longer required. The package only needs `league/flysystem` and `league/mime-type-detection`; the Laravel integration is still auto-discovered when Laravel is installed.
+- **`final` classes**: `FilterBuilder`, `FlysystemFilter`, the service provider and the facade are now `final`. Extend through `Condition` classes, `where()`, `custom()` or macros.
+- **Malformed expressions** (`->or()->or()`, leading or trailing operators, empty groups, unbalanced groups) throw `InvalidFilterException` (a `LogicException`) with a clear message, mostly at the offending call, instead of a `ParseError` from `eval()`.
+- **Invalid arguments** (regex, glob, size, date, interval, inverted ranges) throw `Marktaborosi\FlysystemFilter\Exception\InvalidArgumentException` (a `LogicException`) when the filter is built.
+- **Size filters**: files with an unknown size (`fileSize() === null`) never match. Previously `sizeLt()`, `sizeLte()` and `sizeNotEquals()` matched them, because `null < 1024` is `true` in PHP.
+- **Extension filters** ignore directories (`conf.d` has no extension).
+- **MIME type filters**: directories have no MIME type, the adapter's MIME type is preferred over extension detection, and comparisons are case-insensitive.
+- **Exact-match filters** (`pathEquals`, `filenameEquals`, `basenameEquals`, …) compare strictly.
+- **Date filters**: the parameter `$timestamp` was renamed to `$date`. This only affects named arguments.
+- **Facade accessor** is now the `FlysystemFilter` class; `app('flysystem.filter')` still works as an alias.
+- **Traits** in `Marktaborosi\FlysystemFilter\Traits` are marked `@internal`.
+
+### Fixed
+- Removed `eval()` from `FilterBuilder::matches()`. Expressions compile into an immutable condition tree with short-circuit evaluation. The semantics are identical: AND binds tighter than OR, and conditions without an operator are AND-ed. A test checks this against PHP's own operators on 2,000 random expressions. Evaluation is about 2.8× faster.
+- `strtolower(): Passing null` deprecation for files without an extension.
+- `CarbonImmutable`, `DateTimeImmutable` and every other `DateTimeInterface` are accepted by the date filters; previously they caused a `TypeError`.
+- An invalid regular expression no longer produces a warning and a silent non-match for every item.
+- Removed the duplicate `filterMimeTypeContains()` implementation.
+- The facade PHPDoc now documents the `callable` and `Condition` parameter types.
+- The `Tests\` namespace is no longer in the production autoloader. Tests, examples and tooling are excluded from the dist archive (`.gitattributes`).
+
+### Added
+- **Negation**: `not()`, `whereNot()`, `orWhereNot()`.
+- **Closure groups and helpers**: `where(Closure|Condition)`, `orWhere()`, `whereAny()`, `whereAll()`, `when()`, `unless()`.
+- **camelCase grouping**: `groupStart()` / `groupEnd()`.
+- **Native Flysystem usage**: `FilterBuilder` is invokable, so `$listing->filter($builder)` works.
+- **Globs**: `pathMatchesGlob()`, `basenameMatchesGlob()`, `filenameMatchesGlob()` and `mimeTypeMatches()`, supporting `*`, `**`, `?`, `[…]` and `{a,b}`.
+- **Directories**: `inDirectory($dir, recursive: bool)`.
+- **New filters**: `isHidden()`, `isEmptyFile()`, `hasExtension()`, `basenameMatchesRegex()`, `visibilityNotEquals()`, `depthGte()`, `depthLte()`, `depthBetween()`, `isImage()`, `isVideo()`, `isAudio()`, `isText()`, `hasMetadata()`, `metadataEquals()`, `metadataIn()`.
+- **Relative dates**: `lastModifiedWithin('7 days')` and `lastModifiedOlderThan('30 days')`. Date filters also accept date strings.
+- **Case-insensitive matching**: an `$ignoreCase` argument on the string filters. Extensions and MIME types are case-insensitive by default, and a leading dot in an extension is ignored.
+- **Smarter sizes**: `'1.5M'`, `'10KB'`, `'10KiB'`, `'2 GB'`, `'1P'`.
+- **Regex lists**: the regex filters accept a list of patterns.
+- **Debugging**: `describe()` / `__toString()` return a human-readable form of the filter.
+- **Serialization**: `toArray()`, `jsonSerialize()`, `FilterBuilder::fromArray()` and `FilterBuilder::fromJson()`, plus `ConditionSerializer` with custom types and an `allowRegex` switch for untrusted input.
+- **Extensibility**: a public `Condition` / `SerializableCondition` API with immutable condition classes (`AllOf`, `AnyOf`, `Not`, `StringCondition`, `SizeCondition`, …), `toCondition()`, and macros (`FilterBuilder::macro()`).
+- **MIME detection**: a custom `MimeTypeDetector` can be injected through the constructor.
+- **Helpers**: `FilterBuilder::create()`, `hasConditions()`, and `FlysystemFilter::builder()` (also available through the facade).
+- **`FlysystemFilter::filter()`** accepts any iterable and a `Condition`, `FilterBuilder` or callable, and validates the filter before iterating.
+- **Laravel**: Laravel 11, 12 and 13 are supported. The service provider is deferred, and `FlysystemFilter` can be injected by type.
+
+### Deprecated
+- `group_start()` / `group_end()`: use `groupStart()` / `groupEnd()`.
+
+### Documentation
+- Rewritten README with a table of contents, a step-by-step guide (combining, grouping, negation, dynamic filters, error handling, debugging) and a full API reference describing every method.
+- Updated badges: the license badge now points to `main`, the PHP badge covers 8.2 – 8.5, and there are new badges for the Packagist version, Laravel 11/12/13 support and PHPStan level max.
+- New `UPGRADE.md` with a 3.x → 4.0 migration guide.
+- New `examples/advanced.php`. The existing examples were updated to the v4 API.
+- Fixed the unclosed code block in the 2.0.0 changelog entry.
+
+### Tooling
+- PHPStan at level max with strict rules and the PHPUnit extension, analysed for PHP 8.2 – 8.5.
+- PHP-CS-Fixer (PER-CS 2.0) and Rector configuration, plus a `composer check` script.
+- GitHub Actions matrix: PHP 8.2 – 8.5 × Laravel 11/12/13 × lowest/stable dependencies, plus static analysis and coverage jobs.
+- Rewritten test suite: PHPUnit attributes, real Flysystem attribute objects instead of mocks, data providers, and edge-case, serialization, Laravel and filesystem integration tests (300+ tests).
+
+---
 
 ## [3.0.0] – 2025-08-15
 
@@ -57,6 +120,9 @@ This project adheres to [Semantic Versioning](https://semver.org).
   ```php
   $filtered = FlysystemFilter::filter($listing, $builder);
   $results = iterator_to_array($filtered, false);
+  ```
+
+---
 
 ## [1.1.0] – 2025-04-25
 

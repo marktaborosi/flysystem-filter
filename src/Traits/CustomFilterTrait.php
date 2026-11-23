@@ -1,42 +1,42 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Marktaborosi\FlysystemFilter\Traits;
 
 use League\Flysystem\StorageAttributes;
+use Marktaborosi\FlysystemFilter\Condition\Callback;
+use Marktaborosi\FlysystemFilter\Condition\Condition;
+use Marktaborosi\FlysystemFilter\Condition\SerializableCondition;
 use Marktaborosi\FlysystemFilter\FilterBuilder;
 
 /**
- * Trait CustomFilterTrait
+ * Custom predicates.
  *
- * Provides support for registering user-defined custom filtering logic
- * within the Flysystem FilterBuilder.
- *
- * This trait allows developers to inject arbitrary logic using a
- * closure or callable that receives a `StorageAttributes` object.
- *
- * @package Marktaborosi\FlysystemFilter\Traits
- *
- * @mixin FilterBuilder
+ * @internal used by {@see FilterBuilder}
  */
 trait CustomFilterTrait
 {
     /**
-     * Register a custom user-defined filtering condition.
+     * @internal implemented by {@see FilterBuilder}
+     */
+    abstract protected function push(Condition $condition): static;
+
+    /**
+     * Adds a user defined predicate.
      *
-     * This method accepts any callable that receives a `StorageAttributes` instance and
-     * returns a boolean indicating whether the item should be included in the result.
-     *
-     * Example usage:
      * ```php
-     * $filter->custom(fn(StorageAttributes $item) => strlen($item->path()) > 10);
+     * $filter->custom(fn (StorageAttributes $item): bool => strlen($item->path()) > 10, 'long path');
      * ```
      *
+     * Filters with custom predicates cannot be exported with `toArray()`; implement
+     * {@see SerializableCondition} for that.
+     *
      * @param callable(StorageAttributes): bool $callback
-     * @return FilterBuilder|CustomFilterTrait
+     * @param string|null $description shown by `describe()`
      */
-    public function custom(callable $callback): self
+    public function custom(callable $callback, ?string $description = null): static
     {
-        $this->addCondition($callback);
-        return $this;
+        return $this->push(new Callback($callback, $description ?? 'custom callback'));
     }
 }

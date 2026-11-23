@@ -1,107 +1,91 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Marktaborosi\FlysystemFilter\Traits;
 
-use League\Flysystem\StorageAttributes;
+use League\Flysystem\Visibility;
+use Marktaborosi\FlysystemFilter\Condition\AllOf;
+use Marktaborosi\FlysystemFilter\Condition\Condition;
+use Marktaborosi\FlysystemFilter\Condition\IsKnown;
+use Marktaborosi\FlysystemFilter\Condition\Not;
+use Marktaborosi\FlysystemFilter\Condition\StringCondition;
+use Marktaborosi\FlysystemFilter\Condition\StringOperator;
+use Marktaborosi\FlysystemFilter\Condition\Subject;
 use Marktaborosi\FlysystemFilter\FilterBuilder;
 
 /**
- * Trait VisibilityFiltersTrait
+ * Filters on the visibility reported by the adapter (`public`, `private` or adapter specific).
+ * Items without a known visibility never match the positive filters.
  *
- * Provides filtering methods based on the visibility metadata of Flysystem items.
- * Visibility typically reflects access control, such as `'public'`, `'private'`,
- * or other custom visibility schemes depending on the adapter.
- *
- * This trait is intended for use within {@see \Marktaborosi\FlysystemFilter\FilterBuilder}.
- *
- * @package Marktaborosi\FlysystemFilter\Traits
+ * @internal used by {@see FilterBuilder}
  */
 trait VisibilityFiltersTrait
 {
     /**
-     * Filter items that are explicitly marked as publicly visible.
+     * @param string|int|list<string|int> $values
      *
-     * Equivalent to checking: `$item->visibility() === 'public'`.
-     *
-     * @return FilterBuilder|VisibilityFiltersTrait
+     * @internal implemented by {@see FilterBuilder}
      */
-    public function isPublic(): self
+    abstract protected function addStringCondition(
+        Subject $subject,
+        StringOperator $operator,
+        string|int|array $values,
+        bool $ignoreCase = false,
+        bool $negate = false,
+    ): static;
+
+    /**
+     * @internal implemented by {@see FilterBuilder}
+     */
+    abstract protected function push(Condition $condition): static;
+
+    /**
+     * Visibility is `public`.
+     */
+    public function isPublic(): static
     {
-        $this->addCondition(fn(StorageAttributes $item) =>
-            $item->visibility() === 'public'
-        );
-        return $this;
+        return $this->addStringCondition(Subject::Visibility, StringOperator::Equals, Visibility::PUBLIC);
     }
 
     /**
-     * Filter items that are explicitly marked as private.
-     *
-     * Equivalent to checking: `$item->visibility() === 'private'`.
-     *
-     * @return FilterBuilder|VisibilityFiltersTrait
+     * Visibility is `private`.
      */
-    public function isPrivate(): self
+    public function isPrivate(): static
     {
-        $this->addCondition(fn(StorageAttributes $item) =>
-            $item->visibility() === 'private'
-        );
-        return $this;
+        return $this->addStringCondition(Subject::Visibility, StringOperator::Equals, Visibility::PRIVATE);
     }
 
     /**
-     * Filter items whose visibility exactly matches one or more specified values.
+     * Visibility is exactly one of the values (useful for custom adapter visibilities).
      *
-     * Useful for supporting custom visibility settings (e.g., `'protected'`, `'internal'`).
-     *
-     * Example:
-     * ```php
-     * $filter->visibilityEquals(['team', 'admin']);
-     * ```
-     *
-     * @param string|array $visibilities One or more visibility states to match.
-     * @return FilterBuilder|VisibilityFiltersTrait
+     * @param string|list<string> $visibilities
      */
-    public function visibilityEquals(string|array $visibilities): self
+    public function visibilityEquals(string|array $visibilities): static
     {
-        $visibilities = (array)$visibilities;
-
-        $this->addCondition(function (StorageAttributes $item) use ($visibilities) {
-            return in_array($item->visibility(), $visibilities, true);
-        });
-
-        return $this;
+        return $this->addStringCondition(Subject::Visibility, StringOperator::Equals, $visibilities);
     }
 
     /**
-     * Filter items whose visibility contains one or more substrings.
+     * Visibility is known and none of the values.
      *
-     * Supports partial matching against visibility states. This is especially useful
-     * if visibility is customized (e.g., `'user-public'`, `'readonly-link'`, etc.).
-     *
-     * Example:
-     * ```php
-     * $filter->visibilityContains('public');
-     * ```
-     *
-     * @param string|array $substrings One or more substrings to search for.
-     * @return FilterBuilder|VisibilityFiltersTrait
+     * @param string|list<string> $visibilities
      */
-    public function visibilityContains(string|array $substrings): self
+    public function visibilityNotEquals(string|array $visibilities): static
     {
-        $substrings = (array)$substrings;
+        return $this->push(new AllOf(
+            new IsKnown(Subject::Visibility),
+            new Not(new StringCondition(Subject::Visibility, StringOperator::Equals, $visibilities)),
+        ));
+    }
 
-        $this->addCondition(function (StorageAttributes $item) use ($substrings) {
-            $visibility = $item->visibility() ?? '';
-
-            foreach ($substrings as $substring) {
-                if (str_contains($visibility, $substring)) {
-                    return true;
-                }
-            }
-
-            return false;
-        });
-
-        return $this;
+    /**
+     * Visibility contains one of the substrings.
+     *
+     * @param string|list<string> $substrings
+     */
+    public function visibilityContains(string|array $substrings): static
+    {
+        return $this->addStringCondition(Subject::Visibility, StringOperator::Contains, $substrings);
     }
 }

@@ -1,151 +1,164 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Marktaborosi\FlysystemFilter\Traits;
 
-use League\Flysystem\StorageAttributes;
+use Marktaborosi\FlysystemFilter\Condition\AllOf;
+use Marktaborosi\FlysystemFilter\Condition\AnyOf;
+use Marktaborosi\FlysystemFilter\Condition\Condition;
+use Marktaborosi\FlysystemFilter\Condition\StringCondition;
+use Marktaborosi\FlysystemFilter\Condition\StringOperator;
+use Marktaborosi\FlysystemFilter\Condition\Subject;
+use Marktaborosi\FlysystemFilter\Exception\InvalidArgumentException;
 use Marktaborosi\FlysystemFilter\FilterBuilder;
 
 /**
- * Trait PathFiltersTrait
+ * Filters on the full path of an item (`$item->path()`), e.g. `logs/2025/app.log`.
  *
- * Provides filtering methods based on the full path of a Flysystem item.
+ * Every method accepts one value or a list of values; the condition matches when **any** value matches.
  *
- * These filters operate on the result of `$item->path()`, allowing you to match
- * full paths, partial segments, prefixes, suffixes, and regular expressions.
- *
- * Designed for use within {@see \Marktaborosi\FlysystemFilter\FilterBuilder}.
- *
- * @package Marktaborosi\FlysystemFilter\Traits
+ * @internal used by {@see FilterBuilder}
  */
 trait PathFiltersTrait
 {
     /**
-     * Filter items whose path exactly matches one or more given values.
+     * @param string|int|list<string|int> $values
      *
-     * @param string|array $paths Absolute or relative paths to match (e.g. 'logs/error.log').
-     * @return FilterBuilder|PathFiltersTrait
+     * @internal implemented by {@see FilterBuilder}
      */
-    public function pathEquals(string|array $paths): self
+    abstract protected function addStringCondition(
+        Subject $subject,
+        StringOperator $operator,
+        string|int|array $values,
+        bool $ignoreCase = false,
+        bool $negate = false,
+    ): static;
+
+    /**
+     * @internal implemented by {@see FilterBuilder}
+     */
+    abstract protected function push(Condition $condition): static;
+
+    /**
+     * Path is exactly one of the given values.
+     *
+     * @param string|list<string> $paths e.g. `'logs/error.log'`
+     */
+    public function pathEquals(string|array $paths, bool $ignoreCase = false): static
     {
-        $paths = (array)$paths;
-        $this->addCondition(fn(StorageAttributes $item) =>
-        in_array($item->path(), $paths)
+        return $this->addStringCondition(Subject::Path, StringOperator::Equals, $paths, $ignoreCase);
+    }
+
+    /**
+     * Path is none of the given values.
+     *
+     * @param string|list<string> $paths
+     */
+    public function pathNotEquals(string|array $paths, bool $ignoreCase = false): static
+    {
+        return $this->addStringCondition(Subject::Path, StringOperator::Equals, $paths, $ignoreCase, negate: true);
+    }
+
+    /**
+     * Path contains at least one of the substrings.
+     *
+     * @param string|list<string> $substrings e.g. `['backup', 'archive']`
+     */
+    public function pathContains(string|array $substrings, bool $ignoreCase = false): static
+    {
+        return $this->addStringCondition(Subject::Path, StringOperator::Contains, $substrings, $ignoreCase);
+    }
+
+    /**
+     * Path contains none of the substrings.
+     *
+     * @param string|list<string> $substrings
+     */
+    public function pathNotContains(string|array $substrings, bool $ignoreCase = false): static
+    {
+        return $this->addStringCondition(Subject::Path, StringOperator::Contains, $substrings, $ignoreCase, negate: true);
+    }
+
+    /**
+     * Path starts with one of the prefixes.
+     *
+     * @param string|list<string> $prefixes e.g. `'tmp/'`
+     */
+    public function pathStartsWith(string|array $prefixes, bool $ignoreCase = false): static
+    {
+        return $this->addStringCondition(Subject::Path, StringOperator::StartsWith, $prefixes, $ignoreCase);
+    }
+
+    /**
+     * Path ends with one of the suffixes.
+     *
+     * @param string|list<string> $suffixes e.g. `'_backup.json'`
+     */
+    public function pathEndsWith(string|array $suffixes, bool $ignoreCase = false): static
+    {
+        return $this->addStringCondition(Subject::Path, StringOperator::EndsWith, $suffixes, $ignoreCase);
+    }
+
+    /**
+     * Path matches a PCRE pattern (with delimiters), e.g. `'#^logs/\d{4}/.+\.log$#'`.
+     * The pattern is validated immediately.
+     *
+     * @param string|list<string> $patterns
+     *
+     * @throws InvalidArgumentException for an invalid pattern
+     */
+    public function pathMatchesRegex(string|array $patterns): static
+    {
+        return $this->addStringCondition(Subject::Path, StringOperator::Regex, $patterns);
+    }
+
+    /**
+     * Path matches a glob pattern: `*` (no `/`), `**` (any depth), `?`, `[abc]`, `{a,b}`.
+     *
+     * ```php
+     * $filter->pathMatchesGlob('logs/**.{log,gz}');   // logs/app.log, logs/2025/01/app.gz
+     * ```
+     *
+     * @param string|list<string> $patterns
+     */
+    public function pathMatchesGlob(string|array $patterns, bool $ignoreCase = false): static
+    {
+        return $this->addStringCondition(Subject::Path, StringOperator::Glob, $patterns, $ignoreCase);
+    }
+
+    /**
+     * Item lives directly in one of the directories (`''` is the root).
+     * With `$recursive = true` items in any sub-directory match as well.
+     *
+     * ```php
+     * $filter->inDirectory('logs');                   // logs/app.log
+     * $filter->inDirectory('logs', recursive: true);  // logs/app.log, logs/2025/01/app.log
+     * ```
+     *
+     * @param string|list<string> $directories
+     */
+    public function inDirectory(string|array $directories, bool $recursive = false): static
+    {
+        $directories = array_map(
+            static fn(string $directory): string => trim($directory, '/'),
+            \is_array($directories) ? $directories : [$directories],
         );
-        return $this;
-    }
 
-    /**
-     * Filter items whose path does not match any of the specified values.
-     *
-     * @param string|array $paths One or more paths to exclude.
-     * @return FilterBuilder|PathFiltersTrait
-     */
-    public function pathNotEquals(string|array $paths): self
-    {
-        $paths = (array)$paths;
-        $this->addCondition(fn(StorageAttributes $item) =>
-        !in_array($item->path(), $paths)
-        );
-        return $this;
-    }
+        if (!$recursive) {
+            return $this->addStringCondition(Subject::Dirname, StringOperator::Equals, $directories);
+        }
 
-    /**
-     * Filter items whose path contains at least one of the provided substrings.
-     *
-     * @param string|array $substrings One or more substrings to match (e.g. 'backup', 'archive').
-     * @return FilterBuilder|PathFiltersTrait
-     */
-    public function pathContains(string|array $substrings): self
-    {
-        $substrings = (array)$substrings;
-        $this->addCondition(fn(StorageAttributes $item) =>
-        array_reduce(
-            $substrings,
-            fn($carry, $substring) =>
-                $carry || str_contains($item->path(), $substring),
-            false
-        )
-        );
-        return $this;
-    }
+        if (\in_array('', $directories, true)) {
+            return $this->push(new AllOf());
+        }
 
-    /**
-     * Filter items whose path does not contain any of the specified substrings.
-     *
-     * @param string|array $substrings One or more substrings that must not appear in the path.
-     * @return FilterBuilder|PathFiltersTrait
-     */
-    public function pathNotContains(string|array $substrings): self
-    {
-        $substrings = (array)$substrings;
-        $this->addCondition(fn(StorageAttributes $item) =>
-        array_reduce(
-            $substrings,
-            fn($carry, $substring) =>
-                $carry && !str_contains($item->path(), $substring),
-            true
-        )
-        );
-        return $this;
-    }
-
-    /**
-     * Filter items whose path matches a given regular expression.
-     *
-     * Useful for advanced pattern-based filtering.
-     *
-     * @param string $pattern A valid PCRE regex (e.g. '/\/logs\/\d{4}\/.*\.log$/').
-     * @return FilterBuilder|PathFiltersTrait
-     */
-    public function pathMatchesRegex(string $pattern): self
-    {
-        $this->addCondition(fn(StorageAttributes $item) =>
-        preg_match($pattern, $item->path())
-        );
-        return $this;
-    }
-
-    /**
-     * Filter items whose path starts with one of the given prefixes.
-     *
-     * Useful for filtering by virtual directories or key namespaces.
-     *
-     * @param string|array $prefixes One or more prefix strings (e.g. 'tmp/', 'uploads/').
-     * @return FilterBuilder|PathFiltersTrait
-     */
-    public function pathStartsWith(string|array $prefixes): self
-    {
-        $prefixes = (array)$prefixes;
-        $this->addCondition(function (StorageAttributes $item) use ($prefixes) {
-            $path = $item->path();
-            foreach ($prefixes as $prefix) {
-                if (str_starts_with($path, $prefix)) {
-                    return true;
-                }
-            }
-            return false;
-        });
-        return $this;
-    }
-
-    /**
-     * Filter items whose path ends with one of the given suffixes.
-     *
-     * @param string|array $suffixes One or more suffixes (e.g. '.log', '_backup.json').
-     * @return FilterBuilder|PathFiltersTrait
-     */
-    public function pathEndsWith(string|array $suffixes): self
-    {
-        $suffixes = (array)$suffixes;
-        $this->addCondition(function (StorageAttributes $item) use ($suffixes) {
-            $path = $item->path();
-            foreach ($suffixes as $suffix) {
-                if (str_ends_with($path, $suffix)) {
-                    return true;
-                }
-            }
-            return false;
-        });
-        return $this;
+        return $this->push(new AnyOf(
+            new StringCondition(Subject::Dirname, StringOperator::Equals, $directories),
+            new StringCondition(Subject::Dirname, StringOperator::StartsWith, array_map(
+                static fn(string $directory): string => $directory . '/',
+                $directories,
+            )),
+        ));
     }
 }

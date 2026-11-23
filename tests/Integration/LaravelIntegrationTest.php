@@ -1,86 +1,116 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Marktaborosi\FlysystemFilter\Tests\Integration;
 
+use Illuminate\Filesystem\FilesystemAdapter;
 use Illuminate\Foundation\Application;
 use Illuminate\Support\Facades\Storage;
-use League\Flysystem\FilesystemException;
+use League\Flysystem\StorageAttributes;
 use Marktaborosi\FlysystemFilter\FilterBuilder;
+use Marktaborosi\FlysystemFilter\FlysystemFilter;
 use Marktaborosi\FlysystemFilter\Laravel\FlysystemFilterFacade;
 use Marktaborosi\FlysystemFilter\Laravel\FlysystemFilterServiceProvider;
 use Orchestra\Testbench\TestCase;
+use PHPUnit\Framework\Attributes\Test;
 
-class LaravelIntegrationTest extends TestCase
+final class LaravelIntegrationTest extends TestCase
 {
     /**
-     * @param  Application  $app
-     * @return array<int, class-string>
+     * @param Application $app
+     *
+     * @return list<class-string>
      */
     protected function getPackageProviders($app): array
     {
-        return [
-            FlysystemFilterServiceProvider::class,
-        ];
+        return [FlysystemFilterServiceProvider::class];
     }
 
     /**
-     * @param  Application  $app
+     * @param Application $app
+     *
      * @return array<string, class-string>
      */
     protected function getPackageAliases($app): array
     {
-        return [
-            'FlysystemFilter' => FlysystemFilterFacade::class,
-        ];
+        return ['FlysystemFilter' => FlysystemFilterFacade::class];
     }
 
-    /** @test
-     * @throws FilesystemException
+    /**
+     * @param iterable<StorageAttributes> $listing
+     *
+     * @return list<string>
      */
-    public function facade_filters_with_filter_builder(): void
+    private static function paths(iterable $listing): array
     {
-        Storage::fake('local');
+        $paths = [];
+        foreach ($listing as $item) {
+            $paths[] = $item->path();
+        }
 
-        Storage::disk('local')->put('keep/file.php', '<?php echo "ok";');
-        Storage::disk('local')->put('skip/file.txt', 'not php');
-
-        $listing = Storage::disk('local')->listContents('', true);
-
-        $builder = (new FilterBuilder())->basenameEndsWith('.php');
-
-        $filtered = \FlysystemFilter::filter($listing, $builder);
-
-        $paths = array_map(
-            static fn($item): string => $item->path(),
-            $filtered->toArray()
-        );
-
-        $this->assertContains('keep/file.php', $paths);
-        $this->assertNotContains('skip/file.txt', $paths);
+        return $paths;
     }
 
-    /** @test
-     * @throws FilesystemException
-     */
-    public function facade_filters_with_callable(): void
+    private static function fakeDisk(): FilesystemAdapter
     {
-        Storage::fake('local');
+        $disk = Storage::fake('local');
+        self::assertInstanceOf(FilesystemAdapter::class, $disk);
 
-        Storage::disk('local')->put('log/test.log', 'log data');
-        Storage::disk('local')->put('src/file.php', '<?php echo "ok";');
+        return $disk;
+    }
 
-        $listing = Storage::disk('local')->listContents('', true);
+    #[Test]
+    public function the_facade_alias_is_registered(): void
+    {
+        self::assertTrue(is_a('FlysystemFilter', FlysystemFilterFacade::class, true));
+    }
 
-        $callable = static fn($item): bool => str_ends_with($item->path(), '.log');
+    #[Test]
+    public function the_service_is_a_resolvable_singleton(): void
+    {
+        $service = $this->app?->make(FlysystemFilter::class);
 
-        $filtered = \FlysystemFilter::filter($listing, $callable);
+        self::assertInstanceOf(FlysystemFilter::class, $service);
+        self::assertSame($service, $this->app?->make('flysystem.filter'));
+        self::assertSame($service, FlysystemFilterFacade::getFacadeRoot());
+    }
 
-        $paths = array_map(
-            static fn($item): string => $item->path(),
-            $filtered->toArray()
-        );
+    #[Test]
+    public function facade_filters_with_a_builder(): void
+    {
+        $disk = self::fakeDisk();
+        $disk->put('keep/file.php', '<?php echo "ok";');
+        $disk->put('skip/file.txt', 'not php');
 
-        $this->assertContains('log/test.log', $paths);
-        $this->assertNotContains('src/file.php', $paths);
+        $listing = $disk->getDriver()->listContents('', true);
+        $filtered = FlysystemFilterFacade::filter($listing, FlysystemFilterFacade::builder()->basenameEndsWith('.php'));
+
+        self::assertSame(['keep/file.php'], self::paths($filtered));
+    }
+
+    #[Test]
+    public function facade_filters_with_a_callable(): void
+    {
+        $disk = self::fakeDisk();
+        $disk->put('log/test.log', 'log data');
+        $disk->put('src/file.php', '<?php echo "ok";');
+
+        $listing = $disk->getDriver()->listContents('', true);
+        $filtered = FlysystemFilterFacade::filter($listing, static fn(StorageAttributes $item): bool => str_ends_with($item->path(), '.log'));
+
+        self::assertSame(['log/test.log'], self::paths($filtered));
+    }
+
+    #[Test]
+    public function builder_works_directly_on_laravel_disks(): void
+    {
+        $disk = self::fakeDisk();
+        $disk->put('a.jpg', 'x');
+        $disk->put('b.txt', 'x');
+
+        $filtered = $disk->getDriver()->listContents('', true)->filter(FilterBuilder::create()->isImage());
+
+        self::assertSame(['a.jpg'], self::paths($filtered));
     }
 }

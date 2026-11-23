@@ -1,166 +1,81 @@
 <?php
 
-namespace FilterBuilder\Traits;
+declare(strict_types=1);
 
-use League\Flysystem\StorageAttributes;
+namespace Marktaborosi\FlysystemFilter\Tests\Unit\FilterBuilder\Traits;
+
+use Closure;
+use Marktaborosi\FlysystemFilter\Exception\InvalidArgumentException;
 use Marktaborosi\FlysystemFilter\FilterBuilder;
-use PHPUnit\Framework\MockObject\Exception;
+use Marktaborosi\FlysystemFilter\Tests\Support\Items;
+use PHPUnit\Framework\Attributes\DataProvider;
+use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 
-/**
- * Class PathTest
- *
- * Unit tests for path-based filtering logic in the FilterBuilder.
- * These tests cover direct path matching, substring checks, exclusions,
- * and regular expression-based path filters.
- */
-class PathFiltersTraitTest extends TestCase
+final class PathFiltersTraitTest extends TestCase
 {
     /**
-     * Test filtering by exact path match.
-     *
-     * @throws Exception
+     * @return iterable<string, array{Closure(FilterBuilder): FilterBuilder, string, bool}>
      */
-    public function test_path_equals()
+    public static function cases(): iterable
     {
-        $filter = new FilterBuilder();
-        $filter->pathEquals('/some/path');
-
-        $item = $this->createMock(StorageAttributes::class);
-        $item->method('path')->willReturn('/some/path');
-
-        $this->assertTrue($filter->matches($item));
+        yield 'equals match' => [static fn(FilterBuilder $f) => $f->pathEquals('logs/error.log'), 'logs/error.log', true];
+        yield 'equals list' => [static fn(FilterBuilder $f) => $f->pathEquals(['a.txt', 'logs/error.log']), 'logs/error.log', true];
+        yield 'equals no match' => [static fn(FilterBuilder $f) => $f->pathEquals('logs/error.log'), 'logs/error.txt', false];
+        yield 'equals is case-sensitive' => [static fn(FilterBuilder $f) => $f->pathEquals('Logs/Error.log'), 'logs/error.log', false];
+        yield 'equals ignore case' => [static fn(FilterBuilder $f) => $f->pathEquals('Logs/Error.log', ignoreCase: true), 'logs/error.log', true];
+        yield 'equals is strict (no numeric juggling)' => [static fn(FilterBuilder $f) => $f->pathEquals('1e1'), '10', false];
+        yield 'not equals' => [static fn(FilterBuilder $f) => $f->pathNotEquals(['a.txt', 'b.txt']), 'c.txt', true];
+        yield 'not equals excluded' => [static fn(FilterBuilder $f) => $f->pathNotEquals(['a.txt', 'b.txt']), 'b.txt', false];
+        yield 'contains' => [static fn(FilterBuilder $f) => $f->pathContains(['backup', 'archive']), 'data/archive/x.zip', true];
+        yield 'contains no match' => [static fn(FilterBuilder $f) => $f->pathContains('backup'), 'data/x.zip', false];
+        yield 'not contains' => [static fn(FilterBuilder $f) => $f->pathNotContains(['tmp', 'cache']), 'data/x.zip', true];
+        yield 'not contains excluded' => [static fn(FilterBuilder $f) => $f->pathNotContains(['tmp', 'cache']), 'var/cache/x', false];
+        yield 'starts with' => [static fn(FilterBuilder $f) => $f->pathStartsWith(['tmp/', 'uploads/']), 'uploads/a.png', true];
+        yield 'starts with no match' => [static fn(FilterBuilder $f) => $f->pathStartsWith('tmp/'), 'data/tmp/a', false];
+        yield 'ends with' => [static fn(FilterBuilder $f) => $f->pathEndsWith(['.log', '_backup.json']), 'x/db_backup.json', true];
+        yield 'regex' => [static fn(FilterBuilder $f) => $f->pathMatchesRegex('#^logs/\d{4}/.+\.log$#'), 'logs/2025/app.log', true];
+        yield 'regex no match' => [static fn(FilterBuilder $f) => $f->pathMatchesRegex('#^logs/\d{4}/#'), 'logs/old/app.log', false];
+        yield 'regex list' => [static fn(FilterBuilder $f) => $f->pathMatchesRegex(['/\.md$/', '/\.txt$/']), 'a/b.txt', true];
+        yield 'glob star stays in segment' => [static fn(FilterBuilder $f) => $f->pathMatchesGlob('logs/*.log'), 'logs/2025/app.log', false];
+        yield 'glob double star' => [static fn(FilterBuilder $f) => $f->pathMatchesGlob('logs/**.log'), 'logs/2025/01/app.log', true];
+        yield 'glob braces' => [static fn(FilterBuilder $f) => $f->pathMatchesGlob('**/*.{jpg,png}'), 'a/b/c.png', true];
+        yield 'glob double star slash matches zero dirs' => [static fn(FilterBuilder $f) => $f->pathMatchesGlob('**/*.png'), 'c.png', true];
+        yield 'glob ignore case' => [static fn(FilterBuilder $f) => $f->pathMatchesGlob('*.PNG', ignoreCase: true), 'c.png', true];
+        yield 'in directory (direct child)' => [static fn(FilterBuilder $f) => $f->inDirectory('logs'), 'logs/a.log', true];
+        yield 'in directory excludes nested' => [static fn(FilterBuilder $f) => $f->inDirectory('logs'), 'logs/2025/a.log', false];
+        yield 'in directory excludes prefix lookalike' => [static fn(FilterBuilder $f) => $f->inDirectory('logs', recursive: true), 'logs-old/a.log', false];
+        yield 'in directory recursive' => [static fn(FilterBuilder $f) => $f->inDirectory('/logs/', recursive: true), 'logs/2025/a.log', true];
+        yield 'in root directory' => [static fn(FilterBuilder $f) => $f->inDirectory(''), 'a.log', true];
+        yield 'in root directory excludes nested' => [static fn(FilterBuilder $f) => $f->inDirectory(''), 'x/a.log', false];
+        yield 'in root recursive matches everything' => [static fn(FilterBuilder $f) => $f->inDirectory('', recursive: true), 'x/y/a.log', true];
     }
 
     /**
-     * Test filtering by path containing a substring.
-     *
-     * @throws Exception
+     * @param Closure(FilterBuilder): FilterBuilder $build
      */
-    public function test_path_contains()
+    #[Test]
+    #[DataProvider('cases')]
+    public function path_filters(Closure $build, string $path, bool $expected): void
     {
-        $filter = new FilterBuilder();
-        $filter->pathContains('part');
-
-        $item = $this->createMock(StorageAttributes::class);
-        $item->method('path')->willReturn('/some/path/with/part');
-
-        $this->assertTrue($filter->matches($item));
+        self::assertSame($expected, $build(new FilterBuilder())->matches(Items::file($path)));
     }
 
-    /**
-     * Test filtering by path not being equal to specified values.
-     *
-     * @throws Exception
-     */
-    public function test_path_not_equals()
+    #[Test]
+    public function invalid_regex_is_rejected_when_the_filter_is_built(): void
     {
-        $filter = new FilterBuilder();
-        $filter->pathNotEquals(['/exclude/this.txt']);
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('Invalid regular expression "/[unclosed/"');
 
-        $item = $this->createMock(StorageAttributes::class);
-        $item->method('path')->willReturn('/include/that.txt');
-
-        $this->assertTrue($filter->matches($item));
+        (new FilterBuilder())->pathMatchesRegex('/[unclosed/');
     }
 
-    /**
-     * Test filtering by path not containing specified substrings.
-     *
-     * @throws Exception
-     */
-    public function test_path_not_contains()
+    #[Test]
+    public function invalid_glob_is_rejected_when_the_filter_is_built(): void
     {
-        $filter = new FilterBuilder();
-        $filter->pathNotContains(['tmp', 'draft']);
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('unclosed "{"');
 
-        $item = $this->createMock(StorageAttributes::class);
-        $item->method('path')->willReturn('/storage/public/notes/final.txt');
-
-        $this->assertTrue($filter->matches($item));
+        (new FilterBuilder())->pathMatchesGlob('*.{jpg,png');
     }
-
-    /**
-     * Test filtering by path using a regular expression match.
-     *
-     * @throws Exception
-     */
-    public function test_path_matches_regex()
-    {
-        $filter = new FilterBuilder();
-        $filter->pathMatchesRegex('/\/logs\/\d{4}\/.*\.log$/');
-
-        $item = $this->createMock(StorageAttributes::class);
-        $item->method('path')->willReturn('/logs/2024/system-error.log');
-
-        $this->assertTrue($filter->matches($item));
-    }
-
-    /**
-     * Test that pathStartsWith matches when the path starts with a given prefix.
-     *
-     * @throws Exception
-     */
-    public function test_path_starts_with()
-    {
-        $filter = new FilterBuilder();
-        $filter->pathStartsWith(['/logs', '/var']);
-
-        $item = $this->createMock(StorageAttributes::class);
-        $item->method('path')->willReturn('/logs/2024/app.log');
-
-        $this->assertTrue($filter->matches($item));
-    }
-
-    /**
-     * Test that pathStartsWith does not match when the path does not start with any given prefix.
-     *
-     * @throws Exception
-     */
-    public function test_path_starts_with_negative()
-    {
-        $filter = new FilterBuilder();
-        $filter->pathStartsWith(['/data', '/config']);
-
-        $item = $this->createMock(StorageAttributes::class);
-        $item->method('path')->willReturn('/logs/2024/app.log');
-
-        $this->assertFalse($filter->matches($item));
-    }
-
-    /**
-     * Test that pathEndsWith matches when the path ends with a given suffix.
-     *
-     * @throws Exception
-     */
-    public function test_path_ends_with()
-    {
-        $filter = new FilterBuilder();
-        $filter->pathEndsWith(['error.log', 'access.log']);
-
-        $item = $this->createMock(StorageAttributes::class);
-        $item->method('path')->willReturn('/var/log/nginx/error.log');
-
-        $this->assertTrue($filter->matches($item));
-    }
-
-    /**
-     * Test that pathEndsWith does not match when the path does not end with any given suffix.
-     *
-     * @throws Exception
-     */
-    public function test_path_ends_with_negative()
-    {
-        $filter = new FilterBuilder();
-        $filter->pathEndsWith(['.json', '.csv']);
-
-        $item = $this->createMock(StorageAttributes::class);
-        $item->method('path')->willReturn('/exports/data/report.txt');
-
-        $this->assertFalse($filter->matches($item));
-    }
-
-
-
-
 }

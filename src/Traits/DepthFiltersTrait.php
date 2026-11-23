@@ -1,69 +1,80 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Marktaborosi\FlysystemFilter\Traits;
 
-use League\Flysystem\StorageAttributes;
+use Marktaborosi\FlysystemFilter\Condition\AllOf;
+use Marktaborosi\FlysystemFilter\Condition\Comparison;
+use Marktaborosi\FlysystemFilter\Condition\Condition;
+use Marktaborosi\FlysystemFilter\Condition\DepthCondition;
+use Marktaborosi\FlysystemFilter\Exception\InvalidArgumentException;
 use Marktaborosi\FlysystemFilter\FilterBuilder;
 
 /**
- * Trait DepthFiltersTrait
+ * Filters on the depth of the path: the number of `/` separators after trimming
+ * leading/trailing slashes (`file.txt` → 0, `docs/file.txt` → 1, `a/b/c/file.txt` → 3).
  *
- * Provides filtering capabilities based on the depth (hierarchical level) of a path.
- *
- * Depth is determined by the number of slashes (`/`) in the normalized path string.
- * For example:
- * - `'file.txt'` → depth `0`
- * - `'documents/file.txt'` → depth `1`
- * - `'a/b/c/file.txt'` → depth `3`
- *
- * This trait is designed for use within {@see \Marktaborosi\FlysystemFilter\FilterBuilder}.
- *
- * @package Marktaborosi\FlysystemFilter\Traits
+ * @internal used by {@see FilterBuilder}
  */
 trait DepthFiltersTrait
 {
     /**
-     * Filter items whose path has an exact depth.
-     *
-     * @param int $depth The exact depth to match (0 = top-level file or folder).
-     * @return DepthFiltersTrait|FilterBuilder
+     * @internal implemented by {@see FilterBuilder}
      */
-    public function depthEquals(int $depth): self
-    {
-        $this->addCondition(function (StorageAttributes $item) use ($depth) {
-            return $this->calculateDepth($item->path()) === $depth;
-        });
+    abstract protected function push(Condition $condition): static;
 
-        return $this;
+    public function depthEquals(int $depth): static
+    {
+        return $this->push(new DepthCondition(Comparison::Equal, $depth));
     }
 
     /**
-     * Filter items whose path is deeper than the specified depth.
-     *
-     * @param int $depth The minimum depth (exclusive).
-     * @return DepthFiltersTrait|FilterBuilder
+     * Deeper than the depth (exclusive).
      */
-    public function depthGt(int $depth): self
+    public function depthGt(int $depth): static
     {
-        $this->addCondition(function (StorageAttributes $item) use ($depth) {
-            return $this->calculateDepth($item->path()) > $depth;
-        });
-
-        return $this;
+        return $this->push(new DepthCondition(Comparison::GreaterThan, $depth));
     }
 
     /**
-     * Filter items whose path is shallower than the specified depth.
-     *
-     * @param int $depth The maximum depth (exclusive).
-     * @return DepthFiltersTrait|FilterBuilder
+     * At least the depth (inclusive).
      */
-    public function depthLt(int $depth): self
+    public function depthGte(int $depth): static
     {
-        $this->addCondition(function (StorageAttributes $item) use ($depth) {
-            return $this->calculateDepth($item->path()) < $depth;
-        });
+        return $this->push(new DepthCondition(Comparison::GreaterThanOrEqual, $depth));
+    }
 
-        return $this;
+    /**
+     * Shallower than the depth (exclusive).
+     */
+    public function depthLt(int $depth): static
+    {
+        return $this->push(new DepthCondition(Comparison::LessThan, $depth));
+    }
+
+    /**
+     * At most the depth (inclusive).
+     */
+    public function depthLte(int $depth): static
+    {
+        return $this->push(new DepthCondition(Comparison::LessThanOrEqual, $depth));
+    }
+
+    /**
+     * Within the range, both ends inclusive.
+     *
+     * @throws InvalidArgumentException when min > max
+     */
+    public function depthBetween(int $min, int $max): static
+    {
+        if ($min > $max) {
+            throw new InvalidArgumentException(\sprintf('depthBetween(): the minimum (%d) is larger than the maximum (%d).', $min, $max));
+        }
+
+        return $this->push(new AllOf(
+            new DepthCondition(Comparison::GreaterThanOrEqual, $min),
+            new DepthCondition(Comparison::LessThanOrEqual, $max),
+        ));
     }
 }

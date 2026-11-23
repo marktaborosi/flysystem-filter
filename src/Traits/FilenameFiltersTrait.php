@@ -1,157 +1,117 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Marktaborosi\FlysystemFilter\Traits;
 
-use League\Flysystem\StorageAttributes;
+use Marktaborosi\FlysystemFilter\Condition\StringOperator;
+use Marktaborosi\FlysystemFilter\Condition\Subject;
+use Marktaborosi\FlysystemFilter\Exception\InvalidArgumentException;
 use Marktaborosi\FlysystemFilter\FilterBuilder;
 
 /**
- * Trait FilenameFiltersTrait
+ * Filters on the filename **without** its extension (`pathinfo($path, PATHINFO_FILENAME)`):
+ * for `logs/system-error.log` the filename is `system-error`.
  *
- * Provides filtering methods that target the **filename** portion of a path (excluding the file extension).
- *
- * The filename is extracted using `pathinfo($item->path(), PATHINFO_FILENAME)`.
- * This is useful when you want to match the name without concern for its extension.
- *
- * For example, for the path `logs/system-error.log`, the filename is `system-error`.
- *
- * Intended for use within {@see \Marktaborosi\FlysystemFilter\FilterBuilder}.
- *
- * @package Marktaborosi\FlysystemFilter\Traits
+ * @internal used by {@see FilterBuilder}
  */
 trait FilenameFiltersTrait
 {
     /**
-     * Filter items where the filename matches one of the provided values exactly.
+     * @param string|int|list<string|int> $values
      *
-     * @param string|array $filenames One or more filenames (e.g., 'invoice', 'report2024').
-     * @return FilterBuilder|FilenameFiltersTrait
+     * @internal implemented by {@see FilterBuilder}
      */
-    public function filenameEquals(string|array $filenames): self
+    abstract protected function addStringCondition(
+        Subject $subject,
+        StringOperator $operator,
+        string|int|array $values,
+        bool $ignoreCase = false,
+        bool $negate = false,
+    ): static;
+
+
+    /**
+     * Filename (without extension) is exactly one of the values.
+     *
+     * @param string|list<string> $filenames e.g. `['invoice', 'report-2025']`
+     */
+    public function filenameEquals(string|array $filenames, bool $ignoreCase = false): static
     {
-        $filenames = (array)$filenames;
-        $this->addCondition(fn(StorageAttributes $item) =>
-        in_array(pathinfo($item->path(), PATHINFO_FILENAME), $filenames)
-        );
-        return $this;
+        return $this->addStringCondition(Subject::Filename, StringOperator::Equals, $filenames, $ignoreCase);
     }
 
     /**
-     * Filter items where the filename does not match any of the provided values.
+     * Filename (without extension) is none of the values.
      *
-     * @param string|array $filenames One or more filenames to exclude.
-     * @return FilterBuilder|FilenameFiltersTrait
+     * @param string|list<string> $filenames
      */
-    public function filenameNotEquals(string|array $filenames): self
+    public function filenameNotEquals(string|array $filenames, bool $ignoreCase = false): static
     {
-        $filenames = (array)$filenames;
-        $this->addCondition(fn(StorageAttributes $item) =>
-        !in_array(pathinfo($item->path(), PATHINFO_FILENAME), $filenames)
-        );
-        return $this;
+        return $this->addStringCondition(Subject::Filename, StringOperator::Equals, $filenames, $ignoreCase, negate: true);
     }
 
     /**
-     * Filter items whose filename starts with one of the specified prefixes.
+     * Filename contains at least one of the substrings.
      *
-     * @param string|array $prefixes One or more starting strings (e.g., 'report_', 'log_').
-     * @return FilterBuilder|FilenameFiltersTrait
+     * @param string|list<string> $substrings
      */
-    public function filenameStartsWith(string|array $prefixes): self
+    public function filenameContains(string|array $substrings, bool $ignoreCase = false): static
     {
-        $prefixes = (array)$prefixes;
-
-        $this->addCondition(function (StorageAttributes $item) use ($prefixes) {
-            $filename = pathinfo($item->path(), PATHINFO_FILENAME);
-
-            foreach ($prefixes as $prefix) {
-                if (str_starts_with($filename, $prefix)) {
-                    return true;
-                }
-            }
-
-            return false;
-        });
-
-        return $this;
+        return $this->addStringCondition(Subject::Filename, StringOperator::Contains, $substrings, $ignoreCase);
     }
 
     /**
-     * Filter items whose filename ends with one of the specified suffixes.
+     * Filename contains none of the substrings.
      *
-     * @param string|array $suffixes One or more ending strings (e.g., '_final', '_backup').
-     * @return FilterBuilder|FilenameFiltersTrait
+     * @param string|list<string> $substrings
      */
-    public function filenameEndsWith(string|array $suffixes): self
+    public function filenameNotContains(string|array $substrings, bool $ignoreCase = false): static
     {
-        $suffixes = (array)$suffixes;
-
-        $this->addCondition(function (StorageAttributes $item) use ($suffixes) {
-            $filename = pathinfo($item->path(), PATHINFO_FILENAME);
-
-            foreach ($suffixes as $suffix) {
-                if (str_ends_with($filename, $suffix)) {
-                    return true;
-                }
-            }
-
-            return false;
-        });
-
-        return $this;
+        return $this->addStringCondition(Subject::Filename, StringOperator::Contains, $substrings, $ignoreCase, negate: true);
     }
 
     /**
-     * Filter items whose filename contains one or more of the specified substrings.
+     * Filename starts with one of the prefixes.
      *
-     * @param string|array $substrings Substrings to search for in the filename.
-     * @return FilterBuilder|FilenameFiltersTrait
+     * @param string|list<string> $prefixes e.g. `'report_'`
      */
-    public function filenameContains(string|array $substrings): self
+    public function filenameStartsWith(string|array $prefixes, bool $ignoreCase = false): static
     {
-        $substrings = (array)$substrings;
-        $this->addCondition(fn(StorageAttributes $item) =>
-        array_reduce(
-            $substrings,
-            fn($carry, $substring) =>
-                $carry || str_contains(pathinfo($item->path(), PATHINFO_FILENAME), $substring),
-            false
-        )
-        );
-        return $this;
+        return $this->addStringCondition(Subject::Filename, StringOperator::StartsWith, $prefixes, $ignoreCase);
     }
 
     /**
-     * Filter items whose filename does not contain any of the specified substrings.
+     * Filename ends with one of the suffixes.
      *
-     * @param string|array $substrings Substrings to exclude from the filename.
-     * @return FilterBuilder|FilenameFiltersTrait
+     * @param string|list<string> $suffixes e.g. `'_final'`
      */
-    public function filenameNotContains(string|array $substrings): self
+    public function filenameEndsWith(string|array $suffixes, bool $ignoreCase = false): static
     {
-        $substrings = (array)$substrings;
-        $this->addCondition(fn(StorageAttributes $item) =>
-        array_reduce(
-            $substrings,
-            fn($carry, $substring) =>
-                $carry && !str_contains(pathinfo($item->path(), PATHINFO_FILENAME), $substring),
-            true
-        )
-        );
-        return $this;
+        return $this->addStringCondition(Subject::Filename, StringOperator::EndsWith, $suffixes, $ignoreCase);
     }
 
     /**
-     * Filter items whose filename matches a regular expression.
+     * Filename matches a PCRE pattern (with delimiters), validated immediately.
      *
-     * @param string $pattern A valid PCRE regex pattern.
-     * @return FilterBuilder|FilenameFiltersTrait
+     * @param string|list<string> $patterns e.g. `'/^report-\d{4}$/'`
+     *
+     * @throws InvalidArgumentException for an invalid pattern
      */
-    public function filenameMatchesRegex(string $pattern): self
+    public function filenameMatchesRegex(string|array $patterns): static
     {
-        $this->addCondition(fn(StorageAttributes $item) =>
-        preg_match($pattern, pathinfo($item->path(), PATHINFO_FILENAME))
-        );
-        return $this;
+        return $this->addStringCondition(Subject::Filename, StringOperator::Regex, $patterns);
+    }
+
+    /**
+     * Filename matches a glob pattern (`*`, `?`, `[abc]`, `{a,b}`).
+     *
+     * @param string|list<string> $patterns e.g. `'report-20??'`
+     *
+     * @throws InvalidArgumentException for an invalid pattern
+     */
+    public function filenameMatchesGlob(string|array $patterns, bool $ignoreCase = false): static
+    {
+        return $this->addStringCondition(Subject::Filename, StringOperator::Glob, $patterns, $ignoreCase);
     }
 }

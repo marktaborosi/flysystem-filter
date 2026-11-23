@@ -1,134 +1,115 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Marktaborosi\FlysystemFilter\Traits;
 
-use League\Flysystem\StorageAttributes;
+use Marktaborosi\FlysystemFilter\Condition\StringOperator;
+use Marktaborosi\FlysystemFilter\Condition\Subject;
 use Marktaborosi\FlysystemFilter\FilterBuilder;
 
 /**
- * Trait MimeTypeFiltersTrait
+ * Filters on the MIME type of files. The MIME type reported by the adapter is used when
+ * available, otherwise it is detected from the extension (no file contents are read).
+ * Directories have no MIME type. Comparisons are case-insensitive.
  *
- * Provides filtering capabilities based on MIME types, as inferred from the file path
- * using `league/mime-type-detection`. No file contents are read; detection is purely
- * based on the file extension.
- *
- * MIME type filters are useful for restricting results to media types like images,
- * text files, archives, etc.
- *
- * Designed for use inside {@see \Marktaborosi\FlysystemFilter\FilterBuilder}.
- *
- * @package Marktaborosi\FlysystemFilter\Traits
+ * @internal used by {@see FilterBuilder}
  */
 trait MimeTypeFiltersTrait
 {
     /**
-     * Filter items whose MIME type matches one of the specified values exactly.
+     * @param string|int|list<string|int> $values
      *
-     * Example:
-     * ```php
-     * $filter->mimeTypeEquals('image/png');
-     * $filter->mimeTypeEquals(['application/pdf', 'text/plain']);
-     * ```
-     *
-     * @param string|array $mimeTypes One or more MIME types (e.g. 'image/png', 'application/json').
-     * @return FilterBuilder|MimeTypeFiltersTrait
+     * @internal implemented by {@see FilterBuilder}
      */
-    public function mimeTypeEquals(string|array $mimeTypes): self
+    abstract protected function addStringCondition(
+        Subject $subject,
+        StringOperator $operator,
+        string|int|array $values,
+        bool $ignoreCase = false,
+        bool $negate = false,
+    ): static;
+
+
+    /**
+     * MIME type is one of the values, e.g. `'image/png'`, `['application/pdf', 'text/plain']`.
+     *
+     * @param string|list<string> $mimeTypes
+     */
+    public function mimeTypeEquals(string|array $mimeTypes): static
     {
-        $mimeTypes = (array)$mimeTypes;
-
-        $this->addCondition(function (StorageAttributes $item) use ($mimeTypes) {
-            $mimeType = $this->getMimeTypeFromPath($item->path());
-            return $mimeType !== null && in_array($mimeType, $mimeTypes, true);
-        });
-
-        return $this;
+        return $this->addStringCondition(Subject::MimeType, StringOperator::Equals, $mimeTypes, ignoreCase: true);
     }
 
     /**
-     * Filter items whose MIME type does not match any of the specified values.
+     * MIME type is none of the values (items with an unknown MIME type match).
      *
-     * Example:
-     * ```php
-     * $filter->mimeTypeNotEquals('application/zip');
-     * ```
-     *
-     * @param string|array $mimeTypes One or more MIME types to exclude.
-     * @return FilterBuilder|MimeTypeFiltersTrait
+     * @param string|list<string> $mimeTypes
      */
-    public function mimeTypeNotEquals(string|array $mimeTypes): self
+    public function mimeTypeNotEquals(string|array $mimeTypes): static
     {
-        $mimeTypes = (array)$mimeTypes;
-
-        $this->addCondition(function (StorageAttributes $item) use ($mimeTypes) {
-            $mimeType = $this->getMimeTypeFromPath($item->path());
-            return $mimeType === null || !in_array($mimeType, $mimeTypes, true);
-        });
-
-        return $this;
+        return $this->addStringCondition(Subject::MimeType, StringOperator::Equals, $mimeTypes, ignoreCase: true, negate: true);
     }
 
     /**
-     * Filter items whose MIME type contains any of the provided substrings.
+     * MIME type contains one of the substrings, e.g. `'image'`, `['zip', 'tar']`.
      *
-     * Useful for broad category matches like:
-     * - `'image'` to match `'image/png'`, `'image/jpeg'`, etc.
-     * - `'application'` to match `'application/pdf'`, etc.
-     *
-     * Example:
-     * ```php
-     * $filter->mimeTypeContains(['image', 'text']);
-     * ```
-     *
-     * @param string|array $substrings One or more substrings to include.
-     * @return FilterBuilder|MimeTypeFiltersTrait
+     * @param string|list<string> $substrings
      */
-    public function mimeTypeContains(string|array $substrings): self
+    public function mimeTypeContains(string|array $substrings): static
     {
-        return $this->filterMimeTypeContains((array)$substrings, false);
+        return $this->addStringCondition(Subject::MimeType, StringOperator::Contains, $substrings, ignoreCase: true);
     }
 
     /**
-     * Filter items whose MIME type does not contain any of the provided substrings.
+     * MIME type contains none of the substrings (items with an unknown MIME type match).
      *
-     * Example:
-     * ```php
-     * $filter->mimeTypeNotContains('video');
-     * ```
-     *
-     * @param string|array $substrings One or more substrings to exclude.
-     * @return FilterBuilder|MimeTypeFiltersTrait
+     * @param string|list<string> $substrings
      */
-    public function mimeTypeNotContains(string|array $substrings): self
+    public function mimeTypeNotContains(string|array $substrings): static
     {
-        return $this->filterMimeTypeContains((array)$substrings, true);
+        return $this->addStringCondition(Subject::MimeType, StringOperator::Contains, $substrings, ignoreCase: true, negate: true);
     }
 
     /**
-     * Internal helper to evaluate MIME type substrings with optional negation logic.
+     * MIME type matches a glob, e.g. `'image/*'`, `'application/{zip,gzip,x-tar}'`.
      *
-     * @param array $substrings Substrings to test against the MIME type.
-     * @param bool $negate If true, inverts the result (for "not contains" logic).
-     * @return FilterBuilder|MimeTypeFiltersTrait
+     * @param string|list<string> $patterns
      */
-    private function filterMimeTypeContains(array $substrings, bool $negate): self
+    public function mimeTypeMatches(string|array $patterns): static
     {
-        $this->addCondition(function (StorageAttributes $item) use ($substrings, $negate) {
-            $mimeType = $this->getMimeTypeFromPath($item->path());
+        return $this->addStringCondition(Subject::MimeType, StringOperator::Glob, $patterns, ignoreCase: true);
+    }
 
-            if ($mimeType === null) {
-                return $negate;
-            }
+    /**
+     * Image files (`image/*`).
+     */
+    public function isImage(): static
+    {
+        return $this->addStringCondition(Subject::MimeType, StringOperator::StartsWith, 'image/', ignoreCase: true);
+    }
 
-            foreach ($substrings as $substring) {
-                if (str_contains($mimeType, $substring)) {
-                    return !$negate;
-                }
-            }
+    /**
+     * Video files (`video/*`).
+     */
+    public function isVideo(): static
+    {
+        return $this->addStringCondition(Subject::MimeType, StringOperator::StartsWith, 'video/', ignoreCase: true);
+    }
 
-            return $negate;
-        });
+    /**
+     * Audio files (`audio/*`).
+     */
+    public function isAudio(): static
+    {
+        return $this->addStringCondition(Subject::MimeType, StringOperator::StartsWith, 'audio/', ignoreCase: true);
+    }
 
-        return $this;
+    /**
+     * Text files (`text/*`).
+     */
+    public function isText(): static
+    {
+        return $this->addStringCondition(Subject::MimeType, StringOperator::StartsWith, 'text/', ignoreCase: true);
     }
 }

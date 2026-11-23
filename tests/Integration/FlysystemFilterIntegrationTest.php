@@ -1,255 +1,132 @@
 <?php
+
+declare(strict_types=1);
+
 namespace Marktaborosi\FlysystemFilter\Tests\Integration;
 
 use League\Flysystem\Filesystem;
-use League\Flysystem\FilesystemException;
 use League\Flysystem\Local\LocalFilesystemAdapter;
+use League\Flysystem\StorageAttributes;
 use Marktaborosi\FlysystemFilter\FilterBuilder;
 use Marktaborosi\FlysystemFilter\FlysystemFilter;
+use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 
-class FlysystemFilterIntegrationTest extends TestCase
+/**
+ * Runs filters against a real local filesystem.
+ *
+ * tests/Storage contains: another-test-notes.txt, console.log, dummy.jpg, test-notes.txt
+ */
+final class FlysystemFilterIntegrationTest extends TestCase
 {
+    private Filesystem $fixtures;
 
-    private Filesystem $filesystem;
+    private string $tempDirectory;
+
+    private Filesystem $temp;
 
     protected function setUp(): void
     {
-        $testDirectory = __DIR__ . '/../Storage';
+        $this->fixtures = new Filesystem(new LocalFilesystemAdapter(__DIR__ . '/../Storage'));
 
-        // Create a local filesystem adapter pointing to the test directory
-        $adapter = new LocalFilesystemAdapter($testDirectory);
-        $this->filesystem = new Filesystem($adapter);
+        $this->tempDirectory = sys_get_temp_dir() . '/flysystem-filter-' . bin2hex(random_bytes(6));
+        $this->temp = new Filesystem(new LocalFilesystemAdapter($this->tempDirectory));
+        $this->temp->write('logs/2025/app.log', str_repeat('x', 2048));
+        $this->temp->write('logs/2025/app.log.gz', 'x');
+        $this->temp->write('logs/today.log', 'x');
+        $this->temp->write('images/cat.JPG', 'x');
+        $this->temp->write('images/raw/dog.png', 'x');
+        $this->temp->write('.env', 'SECRET=1');
+        $this->temp->write('.git/config', 'x');
+        $this->temp->write('empty.txt', '');
+    }
+
+    protected function tearDown(): void
+    {
+        $this->temp->deleteDirectory('');
+        @rmdir($this->tempDirectory);
     }
 
     /**
-     * Test filtering to retrieve only files from the filesystem.
+     * @param iterable<StorageAttributes> $listing
      *
-     * @return void
-     * @throws FilesystemException
+     * @return list<string>
      */
-    public function test_filtering_files_only(): void
+    private static function paths(iterable $listing): array
     {
-        // Retrieve contents from the filesystem
-        $flysystemContents = $this->filesystem->listContents('', true);
-
-        // Create a filter to match only files
-        $filter = new FilterBuilder();
-        $filter->isFile();
-
-        // Apply the filter
-        $flysystemFilter = new FlysystemFilter();
-        $filteredResults = $flysystemFilter->filter($flysystemContents, $filter);
-
-        // Extract paths from the filtered results for assertions
-        $filteredPaths = [];
-        foreach ($filteredResults as $result) {
-            $filteredPaths[] = $result->path();
+        $paths = [];
+        foreach ($listing as $item) {
+            $paths[] = $item->path();
         }
+        sort($paths);
 
-        // Assert that only the files are returned
-        $this->assertCount(4, $filteredPaths);
-        $this->assertContains('another-test-notes.txt', $filteredPaths);
-        $this->assertContains('console.log', $filteredPaths);
-        $this->assertContains('dummy.jpg', $filteredPaths);
-        $this->assertContains('test-notes.txt', $filteredPaths);
+        return $paths;
     }
 
-    /**
-     * Test filtering to retrieve files by extension (e.g., .txt files).
-     *
-     * @return void
-     * @throws FilesystemException
-     */
-    public function test_filtering_by_extension(): void
+    #[Test]
+    public function files_only(): void
     {
-        // Retrieve contents from the filesystem
-        $flysystemContents = $this->filesystem->listContents('', true);
+        $filtered = (new FlysystemFilter())->filter($this->fixtures->listContents('', true), (new FilterBuilder())->isFile());
 
-        // Create a filter to match only .txt files
-        $filter = new FilterBuilder();
-        $filter->extensionEquals('txt');
-
-        // Apply the filter
-        $flysystemFilter = new FlysystemFilter();
-        $filteredResults = $flysystemFilter->filter($flysystemContents, $filter);
-
-        // Extract paths from the filtered results for assertions
-        $filteredPaths = [];
-        foreach ($filteredResults as $result) {
-            $filteredPaths[] = $result->path();
-        }
-
-        // Assert that only .txt files are returned
-        $this->assertCount(2, $filteredPaths);
-        $this->assertContains('another-test-notes.txt', $filteredPaths);
-        $this->assertContains('test-notes.txt', $filteredPaths);
+        self::assertSame(['another-test-notes.txt', 'console.log', 'dummy.jpg', 'test-notes.txt'], self::paths($filtered));
     }
 
-    /**
-     * Test filtering files whose filename contains specific substrings.
-     *
-     * @return void
-     * @throws FilesystemException
-     */
-    public function test_filtering_by_filename_contains(): void
+    #[Test]
+    public function grouping_example_from_the_readme(): void
     {
-        // Retrieve contents from the filesystem
-        $flysystemContents = $this->filesystem->listContents('', true);
-
-        // Create a filter to match only .txt files
-        $filter = new FilterBuilder();
-        $filter->filenameContains(['conso','dum']);
-
-        // Apply the filter
-        $flysystemFilter = new FlysystemFilter();
-        $filteredResults = $flysystemFilter->filter($flysystemContents, $filter);
-
-        // Extract paths from the filtered results for assertions
-        $filteredPaths = [];
-        foreach ($filteredResults as $result) {
-            $filteredPaths[] = $result->path();
-        }
-
-        // Assert that only .txt files are returned
-        $this->assertCount(2, $filteredPaths);
-        $this->assertContains('console.log', $filteredPaths);
-        $this->assertContains('dummy.jpg', $filteredPaths);
-    }
-
-    /**
-     * Test filtering files whose filename equals specific values.
-     *
-     * @return void
-     * @throws FilesystemException
-     */
-    public function test_filtering_by_filename_equals(): void
-    {
-        // Retrieve contents from the filesystem
-        $flysystemContents = $this->filesystem->listContents('', true);
-
-        // Create a filter to match only .txt files
-        $filter = new FilterBuilder();
-        $filter->filenameEquals(['console','dummy']);
-
-        // Apply the filter
-        $flysystemFilter = new FlysystemFilter();
-        $filteredResults = $flysystemFilter->filter($flysystemContents, $filter);
-
-        // Extract paths from the filtered results for assertions
-        $filteredPaths = [];
-        foreach ($filteredResults as $result) {
-            $filteredPaths[] = $result->path();
-        }
-
-        // Assert that only .txt files are returned
-        $this->assertCount(2, $filteredPaths);
-        $this->assertContains('console.log', $filteredPaths);
-        $this->assertContains('dummy.jpg', $filteredPaths);
-    }
-
-    /**
-     * Test filtering files whose filename does not equal specific values.
-     *
-     * @return void
-     * @throws FilesystemException
-     */
-    public function test_filtering_by_filename_not_equals(): void
-    {
-        // Retrieve contents from the filesystem
-        $flysystemContents = $this->filesystem->listContents('', true);
-
-        // Create a filter to match only .txt files
-        $filter = new FilterBuilder();
-        $filter
+        $filter = (new FilterBuilder())
             ->isFile()
-            ->filenameNotEquals(['console','dummy']);
+            ->groupStart()->filenameContains('console')->or()->filenameContains('dummy')->groupEnd();
 
-        // Apply the filter
-        $flysystemFilter = new FlysystemFilter();
-        $filteredResults = $flysystemFilter->filter($flysystemContents, $filter);
-
-        // Extract paths from the filtered results for assertions
-        $filteredPaths = [];
-        foreach ($filteredResults as $result) {
-            $filteredPaths[] = $result->path();
-        }
-
-        // Assert that only .txt files are returned
-        $this->assertCount(2, $filteredPaths);
-        $this->assertContains('another-test-notes.txt', $filteredPaths);
-        $this->assertContains('test-notes.txt', $filteredPaths);
+        self::assertSame(['console.log', 'dummy.jpg'], self::paths($this->fixtures->listContents('', true)->filter($filter)));
     }
 
-    /**
-     * Test filtering files by their exact basename (filename with extension).
-     *
-     * @return void
-     * @throws FilesystemException
-     */
-    public function test_filtering_by_basename_1(): void
+    #[Test]
+    public function mime_and_size_with_real_metadata(): void
     {
-        // Retrieve contents from the filesystem
-        $flysystemContents = $this->filesystem->listContents('', true);
+        $listing = fn() => $this->fixtures->listContents('', true);
 
-        // Create a filter to match only .txt files
-        $filter = new FilterBuilder();
-        $filter
-            ->isFile()
-            ->basenameEquals(['console.log','dummy.jpg']);
-
-        // Apply the filter
-        $flysystemFilter = new FlysystemFilter();
-        $filteredResults = $flysystemFilter->filter($flysystemContents, $filter);
-
-        // Extract paths from the filtered results for assertions
-        $filteredPaths = [];
-        foreach ($filteredResults as $result) {
-            $filteredPaths[] = $result->path();
-        }
-
-        // Assert that only .txt files are returned
-        $this->assertCount(2, $filteredPaths);
-        $this->assertContains('console.log', $filteredPaths);
-        $this->assertContains('dummy.jpg', $filteredPaths);
+        self::assertSame(['another-test-notes.txt'], self::paths($listing()->filter(FilterBuilder::create()->isText()->sizeGt(10))));
+        self::assertSame(['dummy.jpg'], self::paths($listing()->filter(FilterBuilder::create()->isImage()->isEmptyFile())));
     }
 
-
-    /**
-     * Test filtering files using logical expressions with AND, OR, and grouping.
-     *
-     * @return void
-     * @throws FilesystemException
-     */
-    public function test_filtering_with_logical_expressions(): void
+    #[Test]
+    public function realistic_filter_on_a_temporary_tree(): void
     {
-        // Retrieve contents from the filesystem
-        $flysystemContents = $this->filesystem->listContents('');
-
-        // Create a filter to match only .txt files
-        $filter = new FilterBuilder();
-        $filter
+        $filter = FilterBuilder::create()
             ->isFile()
-            ->and()
-            ->group_start()
-            ->filenameContains('con')
-            ->or()
-            ->filenameContains('dum')
-            ->group_end();
+            ->not()->isHidden()
+            ->where(static fn(FilterBuilder $q) => $q
+                ->pathMatchesGlob('logs/**.{log,gz}')
+                ->or()
+                ->isImage()->inDirectory('images', recursive: true));
 
-        // Apply the filter
-        $flysystemFilter = new FlysystemFilter();
-        $filteredResults = $flysystemFilter->filter($flysystemContents, $filter);
+        self::assertSame(
+            ['images/cat.JPG', 'images/raw/dog.png', 'logs/2025/app.log', 'logs/2025/app.log.gz', 'logs/today.log'],
+            self::paths($this->temp->listContents('', true)->filter($filter)),
+        );
+    }
 
-        // Extract paths from the filtered results for assertions
-        $filteredPaths = [];
-        foreach ($filteredResults as $result) {
-            $filteredPaths[] = $result->path();
-        }
+    #[Test]
+    public function hidden_empty_and_recent(): void
+    {
+        $listing = fn() => $this->temp->listContents('', true);
 
-        // Assert that only .txt files are returned
-        $this->assertCount(2, $filteredPaths);
-        $this->assertContains('console.log', $filteredPaths);
-        $this->assertContains('dummy.jpg', $filteredPaths);
+        self::assertSame(['.env', '.git', '.git/config'], self::paths($listing()->filter(FilterBuilder::create()->isHidden())));
+        self::assertSame(['empty.txt'], self::paths($listing()->filter(FilterBuilder::create()->isEmptyFile())));
+        self::assertSame(['logs/2025/app.log'], self::paths($listing()->filter(FilterBuilder::create()->sizeGte('2K'))));
+        self::assertCount(8, self::paths($listing()->filter(FilterBuilder::create()->isFile()->lastModifiedWithin('1 hour'))));
+    }
+
+    #[Test]
+    public function serialized_filter_gives_the_same_result(): void
+    {
+        $filter = FilterBuilder::create()->isFile()->not()->isHidden()->extensionEquals(['log', 'png']);
+        $restored = FilterBuilder::fromJson((string) json_encode($filter));
+
+        self::assertSame(
+            self::paths($this->temp->listContents('', true)->filter($filter)),
+            self::paths($this->temp->listContents('', true)->filter($restored)),
+        );
     }
 }

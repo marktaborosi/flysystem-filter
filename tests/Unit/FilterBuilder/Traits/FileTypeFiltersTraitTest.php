@@ -1,69 +1,44 @@
 <?php
 
-namespace FilterBuilder\Traits;
+declare(strict_types=1);
 
-use League\Flysystem\DirectoryAttributes;
-use League\Flysystem\FileAttributes;
+namespace Marktaborosi\FlysystemFilter\Tests\Unit\FilterBuilder\Traits;
+
 use Marktaborosi\FlysystemFilter\FilterBuilder;
-use PHPUnit\Framework\MockObject\Exception;
+use Marktaborosi\FlysystemFilter\Tests\Support\Items;
+use PHPUnit\Framework\Attributes\DataProvider;
+use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 
-/**
- * Class FileDirectoryTest
- *
- * Unit tests for file vs. directory filters in FilterBuilder.
- * These tests ensure that `isFile()` and `isDirectory()` correctly differentiate
- * between FileAttributes and DirectoryAttributes provided by Flysystem.
- */
-class FileTypeFiltersTraitTest extends TestCase
+final class FileTypeFiltersTraitTest extends TestCase
 {
-    /**
-     * Test that the filter correctly matches only files using `isFile()`.
-     *
-     * @throws Exception
-     */
-    public function test_is_file()
+    #[Test]
+    public function is_file_and_is_directory(): void
     {
-        $filter = new FilterBuilder();
-        $filter->isFile();
-
-        $file = $this->createMock(FileAttributes::class);
-        $directory = $this->createMock(DirectoryAttributes::class);
-
-        $this->assertTrue($filter->matches($file), 'Expected file to match isFile() filter.');
-        $this->assertFalse($filter->matches($directory), 'Expected directory to not match isFile() filter.');
+        self::assertTrue((new FilterBuilder())->isFile()->matches(Items::file('a.txt')));
+        self::assertFalse((new FilterBuilder())->isFile()->matches(Items::dir('a')));
+        self::assertTrue((new FilterBuilder())->isDirectory()->matches(Items::dir('a')));
+        self::assertFalse((new FilterBuilder())->isDirectory()->matches(Items::file('a.txt')));
     }
 
     /**
-     * Test that the filter correctly matches only directories using `isDirectory()`.
-     *
-     * @throws Exception
+     * @return iterable<string, array{string, bool}>
      */
-    public function test_is_directory()
+    public static function hiddenPaths(): iterable
     {
-        $filter = new FilterBuilder();
-        $filter->isDirectory();
-
-        $file = $this->createMock(FileAttributes::class);
-        $directory = $this->createMock(DirectoryAttributes::class);
-
-        $this->assertTrue($filter->matches($directory), 'Expected directory to match isDirectory() filter.');
-        $this->assertFalse($filter->matches($file), 'Expected file to not match isDirectory() filter.');
+        yield 'dot file' => ['.env', true];
+        yield 'nested dot file' => ['config/.env.local', true];
+        yield 'inside dot directory' => ['.git/config', true];
+        yield 'regular file' => ['src/app.php', false];
+        yield 'dot in the middle' => ['archive.tar.gz', false];
+        yield 'relative segments are not hidden' => ['./a/../b.txt', false];
     }
 
-    /**
-     * Test that a filter with no conditions matches all items by default.
-     *
-     * @throws Exception
-     */
-    public function test_no_conditions_returns_true()
+    #[Test]
+    #[DataProvider('hiddenPaths')]
+    public function is_hidden(string $path, bool $expected): void
     {
-        $filter = new FilterBuilder();
-
-        $file = $this->createMock(FileAttributes::class);
-        $directory = $this->createMock(DirectoryAttributes::class);
-
-        $this->assertTrue($filter->matches($file), 'Expected file to match when no conditions are set.');
-        $this->assertTrue($filter->matches($directory), 'Expected directory to match when no conditions are set.');
+        self::assertSame($expected, (new FilterBuilder())->isHidden()->matches(Items::file($path)));
+        self::assertSame(!$expected, (new FilterBuilder())->not()->isHidden()->matches(Items::file($path)));
     }
 }

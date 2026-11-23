@@ -1,39 +1,24 @@
 <?php
 
+declare(strict_types=1);
+
 use League\Flysystem\Filesystem;
 use League\Flysystem\Local\LocalFilesystemAdapter;
 use Marktaborosi\FlysystemFilter\FilterBuilder;
-use Marktaborosi\FlysystemFilter\FlysystemFilter;
 
-include_once __DIR__ . '/../vendor/autoload.php';
+require __DIR__ . '/../vendor/autoload.php';
 
-/**
- * Example usage of Flysystem with filtering.
- */
+$filesystem = new Filesystem(new LocalFilesystemAdapter(__DIR__ . '/../tests/Storage'));
+$listing = $filesystem->listContents('', true);
 
-// Create a local filesystem adapter for the test storage directory
-$adapter = new LocalFilesystemAdapter(__DIR__ . "/../tests/Storage/");
+// Images (MIME type detected from the extension, or taken from the adapter when available).
+foreach ($listing->filter(FilterBuilder::create()->isImage()) as $item) {
+    echo $item->path() . PHP_EOL; // dummy.jpg
+}
 
-// Flysystem instance configured with the local adapter.
-$flysystem = new Filesystem($adapter);
+// Anything textual except logs:
+$filter = FilterBuilder::create()->mimeTypeMatches('text/*')->not()->extensionEquals('log');
 
-// Retrieve the list of contents from the filesystem recursively.
-$flysystemContents = $flysystem->listContents("", true);
-
-// Create a FilterBuilder instance and add conditions
-// Filters for: (is File) AND (Filename Contains 'console' OR 'dummy') OR (File size between 1 byte <and> 1 megabyte)
-$filter = new FilterBuilder();
-$filter
-    ->isFile()
-    ->and()
-    ->mimeTypeNotContains('image');
-
-//Filtered results after applying the filter to the filesystem contents.
-$flysystemFilter = new FlysystemFilter();
-$filteredResults =$flysystemFilter->filter($flysystemContents, $filter);
-
-// Output the filtered results for debugging
-// Number of items should be 4
-foreach ($filteredResults as $result) {
-    echo $result->path() . PHP_EOL;
+foreach ($filesystem->listContents('', true)->filter($filter) as $item) {
+    echo $item->path() . PHP_EOL;
 }
