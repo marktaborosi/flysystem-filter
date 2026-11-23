@@ -39,6 +39,7 @@ $images = $filesystem->listContents('uploads', true)->filter($filter);
 - [Extending](#extending)
 - [Saving and loading filters (JSON)](#saving-and-loading-filters-json)
 - [Laravel integration](#laravel-integration)
+  - [Filtering a disk: `Storage::disk()->filter()`](#filtering-a-disk-storagedisk-filter)
 - [Upgrading from 3.x](#upgrading-from-3x)
 - [Development](#development)
 
@@ -52,7 +53,7 @@ $images = $filesystem->listContents('uploads', true)->filter($filter);
 - **Native Flysystem integration:** pass the builder straight to `$listing->filter($builder)`.
 - **Serializable:** save filters as JSON and load them back, safely.
 - **Extensible:** your own condition classes, custom callbacks and macros.
-- **Laravel 11, 12 and 13:** optional, auto-discovered service provider and facade. Projects without Laravel don't pull in any Laravel dependency.
+- **Laravel 11, 12 and 13:** filter any disk with `Storage::disk('s3')->filter('uploads')->isImage()->paths()`, plus an auto-discovered service provider and facade. Projects without Laravel don't pull in any Laravel dependency.
 
 ## Requirements
 
@@ -518,9 +519,73 @@ return [
 ];
 ```
 
-### Example: directly on a disk
+### Filtering a disk: `Storage::disk()->filter()`
 
-Laravel disks return a Flysystem `DirectoryListing`, so no facade is needed:
+*Since 4.1.* Every Laravel disk gets a `filter()` method. Chain any filter from the [API reference](#api-reference), then call a method that returns the results:
+
+```php
+use Illuminate\Support\Facades\Storage;
+
+// Paths of large images in uploads/ (and its sub-directories) on S3
+$paths = Storage::disk('s3')
+    ->filter('uploads')
+    ->isImage()
+    ->sizeGt('5M')
+    ->not()->isHidden()
+    ->paths();
+
+// On the default disk
+$oldLogs = Storage::filter('logs')->isFile()->lastModifiedOlderThan('30 days')->count();
+```
+
+`filter($directory = '', $recursive = true, $builder = null)` takes:
+
+- `$directory`: the directory to list, relative to the disk root (`''` is the whole disk)
+- `$recursive`: whether sub-directories are included (default `true`)
+- `$builder`: an existing `FilterBuilder` to start from (it is copied, not modified)
+
+Methods that return the results:
+
+- `paths()`: the matching paths as a `LazyCollection` of strings
+- `get()`: the matching items (`StorageAttributes`) as a `LazyCollection`
+- `first()`: the first matching item, or `null`. Listing stops as soon as it is found.
+- `exists()` / `doesntExist()`: whether anything matches. Listing stops at the first match.
+- `count()`: the number of matching items
+- `foreach ($query as $item)`: iterate the matching items
+
+Results are lazy, so the disk is only listed while you consume them. Every call lists the disk again, so a query can be reused:
+
+```php
+$pdfs = Storage::disk('s3')->filter('invoices')->isFile()->extensionEquals('pdf');
+
+$pdfs->count();                                                       // 42
+$pdfs->paths()->each(fn (string $path) => dispatch(new ArchiveInvoice($path)));
+```
+
+> Directories are included in the results too. Add `->isFile()` when you only want files.
+
+**Reusing filters.** Pass a `FilterBuilder`, or build one from a query with `builder()`:
+
+```php
+$images = FilterBuilder::create()->isImage()->not()->isHidden();
+
+Storage::disk('public')->filter('avatars', true, $images)->paths();
+Storage::disk('s3')->filter('uploads', true, $images)->sizeGt('10M')->paths();
+```
+
+**Static analysis.** IDEs and PHPStan only see Laravel macros through [Larastan](https://github.com/larastan/larastan) or [laravel-ide-helper](https://github.com/barryvdh/laravel-ide-helper). Without them, use the fully typed equivalent:
+
+```php
+use Marktaborosi\FlysystemFilter\Laravel\StorageFilter;
+
+StorageFilter::on(Storage::disk('s3'), 'uploads')->isImage()->paths();
+```
+
+If another package already registered a `filter` macro on disks, this package keeps it and does not register its own. Use `StorageFilter::on()` in that case.
+
+### Example: using `listContents()`
+
+Laravel disks return a Flysystem `DirectoryListing`, so the builder also works without the macro:
 
 ```php
 use Illuminate\Support\Facades\Storage;
