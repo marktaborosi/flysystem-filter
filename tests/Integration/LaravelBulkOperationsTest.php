@@ -34,8 +34,8 @@ final class LaravelBulkOperationsTest extends TestCase
     {
         parent::setUp();
 
-        $this->disk = self::fake('local');
-        $this->backup = self::fake('backup');
+        $this->disk = $this->fake('local');
+        $this->backup = $this->fake('backup');
 
         $this->disk->put('uploads/cat.jpg', 'cat');
         $this->disk->put('uploads/dog.png', 'dog');
@@ -44,7 +44,7 @@ final class LaravelBulkOperationsTest extends TestCase
         $this->disk->put('logs/app.log', 'log');
     }
 
-    private static function fake(string $name): FilesystemAdapter
+    private function fake(string $name): FilesystemAdapter
     {
         $disk = Storage::fake($name);
         self::assertInstanceOf(FilesystemAdapter::class, $disk);
@@ -60,7 +60,7 @@ final class LaravelBulkOperationsTest extends TestCase
     /**
      * @return list<string>
      */
-    private static function files(FilesystemAdapter $disk): array
+    private function files(FilesystemAdapter $disk): array
     {
         $files = [];
         foreach ($disk->allFiles() as $file) {
@@ -80,7 +80,7 @@ final class LaravelBulkOperationsTest extends TestCase
         self::assertSame('delete', $result->operation);
         self::assertCount(3, $result);
         self::assertTrue($result->successful());
-        self::assertSame(['logs/app.log', 'uploads/notes.txt'], self::files($this->disk));
+        self::assertSame(['logs/app.log', 'uploads/notes.txt'], $this->files($this->disk));
     }
 
     #[Test]
@@ -99,11 +99,11 @@ final class LaravelBulkOperationsTest extends TestCase
 
         self::assertSame(
             ['uploads/2025/big.jpg' => 'archive/2025/big.jpg', 'uploads/cat.jpg' => 'archive/cat.jpg', 'uploads/dog.png' => 'archive/dog.png'],
-            self::sortedMap($result->map()),
+            $this->sortedMap($result->map()),
         );
         self::assertSame(
             ['archive/2025/big.jpg', 'archive/cat.jpg', 'archive/dog.png', 'logs/app.log', 'uploads/notes.txt'],
-            self::files($this->disk),
+            $this->files($this->disk),
         );
         self::assertSame('cat', $this->disk->get('archive/cat.jpg'));
     }
@@ -127,7 +127,7 @@ final class LaravelBulkOperationsTest extends TestCase
         self::assertCount(4, $result);
         self::assertSame(
             ['logs/app.log', 'uploads/archive/2025/big.jpg', 'uploads/archive/cat.jpg', 'uploads/archive/dog.png', 'uploads/archive/notes.txt'],
-            self::files($this->disk),
+            $this->files($this->disk),
         );
     }
 
@@ -174,7 +174,7 @@ final class LaravelBulkOperationsTest extends TestCase
         $result = $this->images()->copyTo($this->backup, 'images');
 
         self::assertSame('copyTo', $result->operation);
-        self::assertSame(['images/2025/big.jpg', 'images/cat.jpg', 'images/dog.png'], self::files($this->backup));
+        self::assertSame(['images/2025/big.jpg', 'images/cat.jpg', 'images/dog.png'], $this->files($this->backup));
         self::assertSame('big', $this->backup->get('images/2025/big.jpg'));
         self::assertTrue($this->disk->exists('uploads/cat.jpg'));
     }
@@ -184,7 +184,7 @@ final class LaravelBulkOperationsTest extends TestCase
     {
         StorageFilter::on($this->disk)->extensionEquals('log')->copyTo($this->backup);
 
-        self::assertSame(['logs/app.log'], self::files($this->backup));
+        self::assertSame(['logs/app.log'], $this->files($this->backup));
     }
 
     #[Test]
@@ -193,8 +193,8 @@ final class LaravelBulkOperationsTest extends TestCase
         $result = $this->images()->moveTo($this->backup, 'images');
 
         self::assertCount(3, $result);
-        self::assertSame(['images/2025/big.jpg', 'images/cat.jpg', 'images/dog.png'], self::files($this->backup));
-        self::assertSame(['logs/app.log', 'uploads/notes.txt'], self::files($this->disk));
+        self::assertSame(['images/2025/big.jpg', 'images/cat.jpg', 'images/dog.png'], $this->files($this->backup));
+        self::assertSame(['logs/app.log', 'uploads/notes.txt'], $this->files($this->disk));
     }
 
     #[Test]
@@ -207,10 +207,10 @@ final class LaravelBulkOperationsTest extends TestCase
 
         self::assertTrue($result->dryRun);
         self::assertSame('move (dry run): 2 processed, 1 skipped, 0 failed', $result->summary());
-        self::assertSame(['uploads/2025/big.jpg' => 'archive/2025/big.jpg', 'uploads/dog.png' => 'archive/dog.png'], self::sortedMap($result->map()));
+        self::assertSame(['uploads/2025/big.jpg' => 'archive/2025/big.jpg', 'uploads/dog.png' => 'archive/dog.png'], $this->sortedMap($result->map()));
         self::assertSame(
             ['archive/cat.jpg', 'logs/app.log', 'uploads/2025/big.jpg', 'uploads/cat.jpg', 'uploads/dog.png', 'uploads/notes.txt'],
-            self::files($this->disk),
+            $this->files($this->disk),
         );
 
         self::assertCount(3, $query->dryRun()->delete());
@@ -218,7 +218,7 @@ final class LaravelBulkOperationsTest extends TestCase
 
         // dryRun() returns a copy: the original query still performs the operation
         self::assertFalse($query->delete()->dryRun);
-        self::assertSame(['archive/cat.jpg', 'logs/app.log', 'uploads/notes.txt'], self::files($this->disk));
+        self::assertSame(['archive/cat.jpg', 'logs/app.log', 'uploads/notes.txt'], $this->files($this->disk));
     }
 
     #[Test]
@@ -258,7 +258,7 @@ final class LaravelBulkOperationsTest extends TestCase
      *
      * @return array<string, string|null>
      */
-    private static function sortedMap(array $map): array
+    private function sortedMap(array $map): array
     {
         ksort($map);
 
