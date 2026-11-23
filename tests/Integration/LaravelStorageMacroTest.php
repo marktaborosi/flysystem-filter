@@ -56,7 +56,7 @@ final class LaravelStorageMacroTest extends TestCase
     /**
      * Calls the disk macro. PHPStan cannot see Laravel macros without Larastan.
      */
-    private function query(string $directory = '', bool $recursive = true, ?FilterBuilder $builder = null): StorageFilter
+    private function diskFilter(string $directory = '', bool $recursive = true, ?FilterBuilder $builder = null): StorageFilter
     {
         $query = $this->disk->filter($directory, $recursive, $builder);
         self::assertInstanceOf(StorageFilter::class, $query);
@@ -87,7 +87,7 @@ final class LaravelStorageMacroTest extends TestCase
     #[Test]
     public function filters_a_disk_with_builder_methods(): void
     {
-        $paths = $this->query('uploads')
+        $paths = $this->diskFilter('uploads')
             ->isImage()
             ->sizeGt('5K')
             ->not()->isHidden()
@@ -111,7 +111,7 @@ final class LaravelStorageMacroTest extends TestCase
     {
         self::assertSame(
             ['logs/app.log', 'uploads/.hidden.jpg', 'uploads/2025/big.jpg', 'uploads/cat.jpg', 'uploads/dog.png', 'uploads/notes.txt'],
-            self::sorted($this->query()->isFile()->paths()),
+            self::sorted($this->diskFilter()->isFile()->paths()),
         );
     }
 
@@ -120,9 +120,9 @@ final class LaravelStorageMacroTest extends TestCase
     {
         self::assertSame(
             ['uploads/.hidden.jpg', 'uploads/cat.jpg', 'uploads/dog.png', 'uploads/notes.txt'],
-            self::sorted($this->query('uploads', recursive: false)->isFile()->paths()),
+            self::sorted($this->diskFilter('uploads', recursive: false)->isFile()->paths()),
         );
-        self::assertSame(['uploads/2025'], self::sorted($this->query('uploads', false)->isDirectory()->paths()));
+        self::assertSame(['uploads/2025'], self::sorted($this->diskFilter('uploads', false)->isDirectory()->paths()));
     }
 
     #[Test]
@@ -130,7 +130,7 @@ final class LaravelStorageMacroTest extends TestCase
     {
         $images = FilterBuilder::create()->isImage();
 
-        $paths = $this->query('uploads', true, $images)->not()->isHidden()->sizeLt('1K')->paths();
+        $paths = $this->diskFilter('uploads', true, $images)->not()->isHidden()->sizeLt('1K')->paths();
 
         self::assertSame(['uploads/dog.png'], self::sorted($paths));
         self::assertSame('MIME type starts with image/', $images->describe());
@@ -139,8 +139,8 @@ final class LaravelStorageMacroTest extends TestCase
     #[Test]
     public function terminal_methods(): void
     {
-        $txt = fn(): StorageFilter => $this->query('uploads')->extensionEquals('txt');
-        $none = fn(): StorageFilter => $this->query('uploads')->extensionEquals('exe');
+        $txt = fn(): StorageFilter => $this->diskFilter('uploads')->extensionEquals('txt');
+        $none = fn(): StorageFilter => $this->diskFilter('uploads')->extensionEquals('exe');
 
         $first = $txt()->first();
         self::assertInstanceOf(StorageAttributes::class, $first);
@@ -169,7 +169,7 @@ final class LaravelStorageMacroTest extends TestCase
     #[Test]
     public function a_query_can_be_reused(): void
     {
-        $query = $this->query('uploads')->extensionEquals('png');
+        $query = $this->diskFilter('uploads')->extensionEquals('png');
 
         self::assertSame(['uploads/dog.png'], self::sorted($query->paths()));
         self::assertSame(['uploads/dog.png'], self::sorted($query->paths()));
@@ -182,7 +182,7 @@ final class LaravelStorageMacroTest extends TestCase
     #[Test]
     public function non_chainable_builder_methods_return_their_own_result(): void
     {
-        $query = $this->query()->isFile()->extensionEquals('log');
+        $query = $this->diskFilter()->isFile()->extensionEquals('log');
 
         self::assertTrue($query->hasConditions());
         self::assertSame('is file AND extension equals log', $query->describe());
@@ -195,7 +195,7 @@ final class LaravelStorageMacroTest extends TestCase
     {
         FilterBuilder::macro('isPhoto', static fn(FilterBuilder $q) => $q->extensionEquals(['jpg', 'jpeg']));
 
-        $query = $this->query('uploads');
+        $query = $this->diskFilter('uploads');
         $query->isPhoto();
 
         self::assertSame(['uploads/.hidden.jpg', 'uploads/2025/big.jpg', 'uploads/cat.jpg'], self::sorted($query->paths()));
@@ -204,7 +204,7 @@ final class LaravelStorageMacroTest extends TestCase
     #[Test]
     public function an_incomplete_filter_fails_when_the_query_runs(): void
     {
-        $query = $this->query()->isFile()->or();
+        $query = $this->diskFilter()->isFile()->or();
 
         $this->expectException(InvalidFilterException::class);
 
@@ -217,7 +217,7 @@ final class LaravelStorageMacroTest extends TestCase
         $this->expectException(BadMethodCallException::class);
         $this->expectExceptionMessage('StorageFilter::nope() does not exist');
 
-        $this->query()->nope();
+        $this->diskFilter()->nope();
     }
 
     #[Test]
@@ -225,7 +225,7 @@ final class LaravelStorageMacroTest extends TestCase
     {
         $this->expectException(BadMethodCallException::class);
 
-        $this->query()->__clone();
+        $this->diskFilter()->__clone();
     }
 
     #[Test]
