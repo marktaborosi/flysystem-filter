@@ -1,69 +1,43 @@
 <?php
 
-namespace FilterBuilder\Traits;
+declare(strict_types=1);
 
+namespace Marktaborosi\FlysystemFilter\Tests\Unit\FilterBuilder\Traits;
+
+use Closure;
 use League\Flysystem\StorageAttributes;
 use Marktaborosi\FlysystemFilter\FilterBuilder;
-use PHPUnit\Framework\MockObject\Exception;
+use Marktaborosi\FlysystemFilter\Tests\Support\Items;
+use PHPUnit\Framework\Attributes\DataProvider;
+use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 
-/**
- * Class VisibilityTest
- *
- * Unit tests for visibility-based filtering using the FilterBuilder.
- * Tests cover both public and private filters, including positive and negative matching.
- */
-class VisibilityFiltersTraitTest extends TestCase
+final class VisibilityFiltersTraitTest extends TestCase
 {
     /**
-     * Test that isPublic() and isPrivate() filters correctly match their respective visibility values.
-     *
-     * @throws Exception
+     * @return iterable<string, array{Closure(FilterBuilder): FilterBuilder, StorageAttributes, bool}>
      */
-    public function test_visibility_filters()
+    public static function cases(): iterable
     {
-        $publicFilter = (new FilterBuilder())->isPublic();
-        $privateFilter = (new FilterBuilder())->isPrivate();
-
-        $publicItem = $this->createMock(StorageAttributes::class);
-        $publicItem->method('visibility')->willReturn('public');
-
-        $privateItem = $this->createMock(StorageAttributes::class);
-        $privateItem->method('visibility')->willReturn('private');
-
-        $this->assertTrue($publicFilter->matches($publicItem), 'Expected public item to match isPublic()');
-        $this->assertTrue($privateFilter->matches($privateItem), 'Expected private item to match isPrivate()');
+        yield 'public' => [static fn(FilterBuilder $f) => $f->isPublic(), Items::file('a', visibility: 'public'), true];
+        yield 'public no' => [static fn(FilterBuilder $f) => $f->isPublic(), Items::file('a', visibility: 'private'), false];
+        yield 'private' => [static fn(FilterBuilder $f) => $f->isPrivate(), Items::dir('a', visibility: 'private'), true];
+        yield 'unknown is neither' => [static fn(FilterBuilder $f) => $f->isPublic(), Items::file('a', visibility: null), false];
+        yield 'equals custom' => [static fn(FilterBuilder $f) => $f->visibilityEquals(['team', 'admin']), Items::file('a', visibility: 'admin'), true];
+        yield 'not equals' => [static fn(FilterBuilder $f) => $f->visibilityNotEquals('private'), Items::file('a', visibility: 'public'), true];
+        yield 'not equals excluded' => [static fn(FilterBuilder $f) => $f->visibilityNotEquals('private'), Items::file('a', visibility: 'private'), false];
+        yield 'not equals requires known visibility' => [static fn(FilterBuilder $f) => $f->visibilityNotEquals('private'), Items::file('a', visibility: null), false];
+        yield 'contains' => [static fn(FilterBuilder $f) => $f->visibilityContains('public'), Items::file('a', visibility: 'user-public'), true];
+        yield 'contains unknown' => [static fn(FilterBuilder $f) => $f->visibilityContains('public'), Items::file('a', visibility: null), false];
     }
 
     /**
-     * Test that isPublic() does not match an item with private visibility.
-     *
-     * @throws Exception
+     * @param Closure(FilterBuilder): FilterBuilder $build
      */
-    public function test_is_public_does_not_match_private_item()
+    #[Test]
+    #[DataProvider('cases')]
+    public function visibility_filters(Closure $build, StorageAttributes $item, bool $expected): void
     {
-        $filter = new FilterBuilder();
-        $filter->isPublic();
-
-        $item = $this->createMock(StorageAttributes::class);
-        $item->method('visibility')->willReturn('private');
-
-        $this->assertFalse($filter->matches($item), 'Expected private item to not match isPublic()');
-    }
-
-    /**
-     * Test that isPrivate() does not match an item with public visibility.
-     *
-     * @throws Exception
-     */
-    public function test_is_private_does_not_match_public_item()
-    {
-        $filter = new FilterBuilder();
-        $filter->isPrivate();
-
-        $item = $this->createMock(StorageAttributes::class);
-        $item->method('visibility')->willReturn('public');
-
-        $this->assertFalse($filter->matches($item), 'Expected public item to not match isPrivate()');
+        self::assertSame($expected, $build(new FilterBuilder())->matches($item));
     }
 }

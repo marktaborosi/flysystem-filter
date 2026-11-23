@@ -1,75 +1,94 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Marktaborosi\FlysystemFilter\Traits;
 
-use Carbon\Carbon;
-use League\Flysystem\StorageAttributes;
+use DateInterval;
+use DateTimeInterface;
+use Marktaborosi\FlysystemFilter\Condition\AllOf;
+use Marktaborosi\FlysystemFilter\Condition\Comparison;
+use Marktaborosi\FlysystemFilter\Condition\Condition;
+use Marktaborosi\FlysystemFilter\Condition\LastModifiedCondition;
+use Marktaborosi\FlysystemFilter\Exception\InvalidArgumentException;
 use Marktaborosi\FlysystemFilter\FilterBuilder;
+use Marktaborosi\FlysystemFilter\Support\Time;
 
 /**
- * Trait DateFiltersTrait
+ * Filters on the last modification time (`$item->lastModified()`).
  *
- * Provides filter conditions for file and directory modification timestamps.
+ * Dates can be UNIX timestamps, any {@see DateTimeInterface} (Carbon, CarbonImmutable,
+ * DateTimeImmutable, …) or date strings (`'2025-01-31'`, `'yesterday'`). Items without a
+ * known modification time never match.
  *
- * These filters operate on the `lastModified()` metadata of Flysystem items,
- * allowing you to constrain results to before, after, or between specific dates.
- *
- * Compatible with both `int` UNIX timestamps and Carbon instances.
- *
- * Designed for use within {@see \Marktaborosi\FlysystemFilter\FilterBuilder}.
- *
- * @package Marktaborosi\FlysystemFilter\Traits
+ * @internal used by {@see FilterBuilder}
  */
 trait DateFiltersTrait
 {
     /**
-     * Add a condition to match items modified strictly before a given timestamp.
-     *
-     * @param int|Carbon $timestamp A UNIX timestamp or a Carbon object.
-     * @return FilterBuilder|DateFiltersTrait
+     * @internal implemented by {@see FilterBuilder}
      */
-    public function lastModifiedBefore(int|Carbon $timestamp): self
+    abstract protected function push(Condition $condition): static;
+
+    /**
+     * Modified strictly before the date.
+     *
+     * @throws InvalidArgumentException for an invalid date
+     */
+    public function lastModifiedBefore(int|string|DateTimeInterface $date): static
     {
-        $timestampValue = $timestamp instanceof Carbon ? $timestamp->timestamp : $timestamp;
-        $this->addCondition(fn(StorageAttributes $item) =>
-            $item->lastModified() !== null &&
-            $item->lastModified() < $timestampValue
-        );
-        return $this;
+        return $this->push(new LastModifiedCondition(Comparison::LessThan, Time::toTimestamp($date)));
     }
 
     /**
-     * Add a condition to match items modified strictly after a given timestamp.
+     * Modified strictly after the date.
      *
-     * @param int|Carbon $timestamp A UNIX timestamp or a Carbon object.
-     * @return FilterBuilder|DateFiltersTrait
+     * @throws InvalidArgumentException for an invalid date
      */
-    public function lastModifiedAfter(int|Carbon $timestamp): self
+    public function lastModifiedAfter(int|string|DateTimeInterface $date): static
     {
-        $timestampValue = $timestamp instanceof Carbon ? $timestamp->timestamp : $timestamp;
-        $this->addCondition(fn(StorageAttributes $item) =>
-            $item->lastModified() !== null &&
-            $item->lastModified() > $timestampValue
-        );
-        return $this;
+        return $this->push(new LastModifiedCondition(Comparison::GreaterThan, Time::toTimestamp($date)));
     }
 
     /**
-     * Add a condition to match items modified between two timestamps, inclusive.
+     * Modified within the range, both ends inclusive.
      *
-     * @param int|Carbon $start The start timestamp (inclusive).
-     * @param int|Carbon $end The end timestamp (inclusive).
-     * @return FilterBuilder|DateFiltersTrait
+     * @throws InvalidArgumentException for an invalid date or when start > end
      */
-    public function lastModifiedBetween(int|Carbon $start, int|Carbon $end): self
+    public function lastModifiedBetween(int|string|DateTimeInterface $start, int|string|DateTimeInterface $end): static
     {
-        $startTimestamp = $start instanceof Carbon ? $start->timestamp : $start;
-        $endTimestamp = $end instanceof Carbon ? $end->timestamp : $end;
-        $this->addCondition(fn(StorageAttributes $item) =>
-            $item->lastModified() !== null &&
-            $item->lastModified() >= $startTimestamp &&
-            $item->lastModified() <= $endTimestamp
-        );
-        return $this;
+        $from = Time::toTimestamp($start);
+        $to = Time::toTimestamp($end);
+
+        if ($from > $to) {
+            throw new InvalidArgumentException('lastModifiedBetween(): the start date is after the end date.');
+        }
+
+        return $this->push(new AllOf(
+            new LastModifiedCondition(Comparison::GreaterThanOrEqual, $from),
+            new LastModifiedCondition(Comparison::LessThanOrEqual, $to),
+        ));
+    }
+
+    /**
+     * Modified within the last interval, e.g. `lastModifiedWithin('7 days')`, `lastModifiedWithin('PT12H')`.
+     * The reference time is taken when this method is called.
+     *
+     * @throws InvalidArgumentException for an invalid interval
+     */
+    public function lastModifiedWithin(DateInterval|string $interval, ?DateTimeInterface $now = null): static
+    {
+        return $this->push(new LastModifiedCondition(Comparison::GreaterThanOrEqual, Time::ago($interval, $now)));
+    }
+
+    /**
+     * Not modified for longer than the interval, e.g. `lastModifiedOlderThan('30 days')`.
+     * The reference time is taken when this method is called.
+     *
+     * @throws InvalidArgumentException for an invalid interval
+     */
+    public function lastModifiedOlderThan(DateInterval|string $interval, ?DateTimeInterface $now = null): static
+    {
+        return $this->push(new LastModifiedCondition(Comparison::LessThan, Time::ago($interval, $now)));
     }
 }

@@ -1,0 +1,21 @@
+includes:
+    - vendor/phpstan/phpstan-phpunit/extension.neon
+    - vendor/phpstan/phpstan-phpunit/rules.neon
+    - vendor/phpstan/phpstan-strict-rules/rules.neon
+
+parameters:
+    level: max
+    paths:
+        - src
+        - tests
+    excludePaths:
+        - tests/Storage
+    treatPhpDocTypesAsCertain: false
+    phpVersion:
+        min: 80200
+        max: 80599
+    ignoreErrors:
+        # Macros are resolved through __call() at runtime.
+        -
+            identifier: method.notFound
+            path: tests/Unit/FilterBuilder/MacroTest.php

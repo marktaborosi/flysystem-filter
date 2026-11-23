@@ -1,97 +1,53 @@
 <?php
 
-namespace FilterBuilder\Traits;
+declare(strict_types=1);
 
-use League\Flysystem\StorageAttributes;
+namespace Marktaborosi\FlysystemFilter\Tests\Unit\FilterBuilder\Traits;
+
+use Closure;
+use Marktaborosi\FlysystemFilter\Exception\InvalidArgumentException;
 use Marktaborosi\FlysystemFilter\FilterBuilder;
-use PHPUnit\Framework\MockObject\Exception;
+use Marktaborosi\FlysystemFilter\Tests\Support\Items;
+use PHPUnit\Framework\Attributes\DataProvider;
+use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 
-/**
- * Class DepthTest
- *
- * Unit tests for path depth-based filtering logic in the FilterBuilder.
- * These tests validate conditions for exact, greater than, and less than path depth.
- */
-class DepthFiltersTraitTest extends TestCase
+final class DepthFiltersTraitTest extends TestCase
 {
     /**
-     * Test that depthEquals matches when the depth is exactly equal.
-     *
-     * @throws Exception
+     * @return iterable<string, array{Closure(FilterBuilder): FilterBuilder, string, bool}>
      */
-    public function test_depth_equals()
+    public static function cases(): iterable
     {
-        $filter = new FilterBuilder();
-        $filter->depthEquals(2);
-
-        $item = $this->createMock(StorageAttributes::class);
-        $item->method('path')->willReturn('level1/level2/file.txt');
-
-        $this->assertTrue($filter->matches($item));
+        yield 'root file depth 0' => [static fn(FilterBuilder $f) => $f->depthEquals(0), 'file.txt', true];
+        yield 'nested depth 1' => [static fn(FilterBuilder $f) => $f->depthEquals(1), 'documents/file.txt', true];
+        yield 'leading slash ignored' => [static fn(FilterBuilder $f) => $f->depthEquals(3), '/a/b/c/file.txt', true];
+        yield 'trailing slash ignored' => [static fn(FilterBuilder $f) => $f->depthEquals(1), 'a/b/', true];
+        yield 'gt' => [static fn(FilterBuilder $f) => $f->depthGt(1), 'a/b/c.txt', true];
+        yield 'gt exclusive' => [static fn(FilterBuilder $f) => $f->depthGt(2), 'a/b/c.txt', false];
+        yield 'gte' => [static fn(FilterBuilder $f) => $f->depthGte(2), 'a/b/c.txt', true];
+        yield 'lt' => [static fn(FilterBuilder $f) => $f->depthLt(1), 'c.txt', true];
+        yield 'lt exclusive' => [static fn(FilterBuilder $f) => $f->depthLt(1), 'a/c.txt', false];
+        yield 'lte' => [static fn(FilterBuilder $f) => $f->depthLte(1), 'a/c.txt', true];
+        yield 'between' => [static fn(FilterBuilder $f) => $f->depthBetween(1, 2), 'a/b/c.txt', true];
+        yield 'between outside' => [static fn(FilterBuilder $f) => $f->depthBetween(1, 2), 'a/b/c/d.txt', false];
     }
 
     /**
-     * Test that depthGt matches when the depth is greater than the specified value.
-     *
-     * @throws Exception
+     * @param Closure(FilterBuilder): FilterBuilder $build
      */
-    public function test_depth_gt()
+    #[Test]
+    #[DataProvider('cases')]
+    public function depth_filters(Closure $build, string $path, bool $expected): void
     {
-        $filter = new FilterBuilder();
-        $filter->depthGt(1);
-
-        $item = $this->createMock(StorageAttributes::class);
-        $item->method('path')->willReturn('a/b/c.txt');
-
-        $this->assertTrue($filter->matches($item));
+        self::assertSame($expected, $build(new FilterBuilder())->matches(Items::file($path)));
     }
 
-    /**
-     * Test that depthGt does not match when the depth is not greater.
-     *
-     * @throws Exception
-     */
-    public function test_depth_gt_negative()
+    #[Test]
+    public function between_rejects_inverted_range(): void
     {
-        $filter = new FilterBuilder();
-        $filter->depthGt(3);
+        $this->expectException(InvalidArgumentException::class);
 
-        $item = $this->createMock(StorageAttributes::class);
-        $item->method('path')->willReturn('x/y/z.txt');
-
-        $this->assertFalse($filter->matches($item));
-    }
-
-    /**
-     * Test that depthLt matches when the depth is less than the specified value.
-     *
-     * @throws Exception
-     */
-    public function test_depth_lt()
-    {
-        $filter = new FilterBuilder();
-        $filter->depthLt(2);
-
-        $item = $this->createMock(StorageAttributes::class);
-        $item->method('path')->willReturn('shallow/file.txt');
-
-        $this->assertTrue($filter->matches($item));
-    }
-
-    /**
-     * Test that depthLt does not match when the depth is not less.
-     *
-     * @throws Exception
-     */
-    public function test_depth_lt_negative()
-    {
-        $filter = new FilterBuilder();
-        $filter->depthLt(1);
-
-        $item = $this->createMock(StorageAttributes::class);
-        $item->method('path')->willReturn('one/two.txt');
-
-        $this->assertFalse($filter->matches($item));
+        (new FilterBuilder())->depthBetween(3, 1);
     }
 }

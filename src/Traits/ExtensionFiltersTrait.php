@@ -1,93 +1,100 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Marktaborosi\FlysystemFilter\Traits;
 
-use League\Flysystem\StorageAttributes;
+use Marktaborosi\FlysystemFilter\Condition\Condition;
+use Marktaborosi\FlysystemFilter\Condition\IsKnown;
+use Marktaborosi\FlysystemFilter\Condition\StringOperator;
+use Marktaborosi\FlysystemFilter\Condition\Subject;
 use Marktaborosi\FlysystemFilter\FilterBuilder;
 
 /**
- * Trait ExtensionFiltersTrait
+ * Filters on the file extension (`pathinfo($path, PATHINFO_EXTENSION)`), case-insensitive by default.
+ * Directories and files without an extension have no extension: they never match the
+ * positive filters and always match the negative ones.
  *
- * Provides filtering methods based on file extensions.
- * These filters operate on the result of `pathinfo($item->path(), PATHINFO_EXTENSION)`,
- * and are case-insensitive by default.
- *
- * Designed to be used within {@see \Marktaborosi\FlysystemFilter\FilterBuilder}.
- *
- * @package Marktaborosi\FlysystemFilter\Traits
+ * @internal used by {@see FilterBuilder}
  */
 trait ExtensionFiltersTrait
 {
     /**
-     * Filter files whose extension exactly matches one or more given extensions.
+     * @param string|int|list<string|int> $values
      *
-     * Matching is case-insensitive.
-     *
-     * @param string|array $extensions e.g. 'jpg', ['txt', 'log']
-     * @return ExtensionFiltersTrait|FilterBuilder
+     * @internal implemented by {@see FilterBuilder}
      */
-    public function extensionEquals(string|array $extensions): self
+    abstract protected function addStringCondition(
+        Subject $subject,
+        StringOperator $operator,
+        string|int|array $values,
+        bool $ignoreCase = false,
+        bool $negate = false,
+    ): static;
+
+    /**
+     * @internal implemented by {@see FilterBuilder}
+     */
+    abstract protected function push(Condition $condition): static;
+
+    /**
+     * Extension is one of the values. Case-insensitive by default; a leading dot is ignored.
+     *
+     * @param string|list<string> $extensions e.g. `'jpg'`, `['txt', '.log']`
+     */
+    public function extensionEquals(string|array $extensions, bool $ignoreCase = true): static
     {
-        $extensions = array_map('strtolower', (array)$extensions);
-        $this->addCondition(fn(StorageAttributes $item) =>
-        in_array(strtolower($this->getExtension($item->path())), $extensions, true)
-        );
-        return $this;
+        return $this->addStringCondition(Subject::Extension, StringOperator::Equals, self::normalizeExtensions($extensions), $ignoreCase);
     }
 
     /**
-     * Filter files whose extension does not match any of the specified values.
+     * Extension is none of the values (items without an extension, and directories, match).
      *
-     * Matching is case-insensitive.
-     *
-     * @param string|array $extensions e.g. 'csv', ['exe', 'bak']
-     * @return ExtensionFiltersTrait|FilterBuilder
+     * @param string|list<string> $extensions
      */
-    public function extensionNotEquals(string|array $extensions): self
+    public function extensionNotEquals(string|array $extensions, bool $ignoreCase = true): static
     {
-        $extensions = array_map('strtolower', (array)$extensions);
-        $this->addCondition(fn(StorageAttributes $item) =>
-        !in_array(strtolower($this->getExtension($item->path())), $extensions, true)
-        );
-        return $this;
+        return $this->addStringCondition(Subject::Extension, StringOperator::Equals, self::normalizeExtensions($extensions), $ignoreCase, negate: true);
     }
 
     /**
-     * Filter files whose extension contains one or more substrings.
+     * Extension contains one of the substrings, e.g. `'ml'` matches `html`, `xml`.
      *
-     * This is useful for flexible pattern matches like:
-     * - extensions that include "ml" (`html`, `xml`, `mhtml`)
-     *
-     * @param string|array $substrings
-     * @return ExtensionFiltersTrait|FilterBuilder
+     * @param string|list<string> $substrings
      */
-    public function extensionContains(string|array $substrings): self
+    public function extensionContains(string|array $substrings, bool $ignoreCase = true): static
     {
-        $substrings = array_map('strtolower', (array)$substrings);
-        $this->addCondition(fn(StorageAttributes $item) =>
-        array_reduce($substrings, fn($carry, $substring) =>
-            $carry || str_contains(strtolower($this->getExtension($item->path()) ?? ''), $substring),
-            false
-        )
-        );
-        return $this;
+        return $this->addStringCondition(Subject::Extension, StringOperator::Contains, $substrings, $ignoreCase);
     }
 
     /**
-     * Filter files whose extension does not contain any of the specified substrings.
+     * Extension contains none of the substrings.
      *
-     * @param string|array $substrings
-     * @return ExtensionFiltersTrait|FilterBuilder
+     * @param string|list<string> $substrings
      */
-    public function extensionNotContains(string|array $substrings): self
+    public function extensionNotContains(string|array $substrings, bool $ignoreCase = true): static
     {
-        $substrings = array_map('strtolower', (array)$substrings);
-        $this->addCondition(fn(StorageAttributes $item) =>
-        array_reduce($substrings, fn($carry, $substring) =>
-            $carry && !str_contains(strtolower($this->getExtension($item->path()) ?? ''), $substring),
-            true
-        )
+        return $this->addStringCondition(Subject::Extension, StringOperator::Contains, $substrings, $ignoreCase, negate: true);
+    }
+
+    /**
+     * Item has an extension.
+     */
+    public function hasExtension(): static
+    {
+        return $this->push(new IsKnown(Subject::Extension));
+    }
+
+    /**
+     * @param string|list<string> $extensions
+     *
+     * @return list<string>
+     */
+    private static function normalizeExtensions(string|array $extensions): array
+    {
+        return array_map(
+            static fn(string $extension): string => ltrim($extension, '.'),
+            \is_array($extensions) ? $extensions : [$extensions],
         );
-        return $this;
     }
 }

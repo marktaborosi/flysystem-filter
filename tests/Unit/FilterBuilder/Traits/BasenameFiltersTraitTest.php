@@ -1,149 +1,48 @@
 <?php
 
-namespace FilterBuilder\Traits;
+declare(strict_types=1);
 
-use League\Flysystem\StorageAttributes;
+namespace Marktaborosi\FlysystemFilter\Tests\Unit\FilterBuilder\Traits;
+
+use Closure;
 use Marktaborosi\FlysystemFilter\FilterBuilder;
-use PHPUnit\Framework\MockObject\Exception;
+use Marktaborosi\FlysystemFilter\Tests\Support\Items;
+use PHPUnit\Framework\Attributes\DataProvider;
+use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 
-/**
- * Class BasenameTest
- *
- * Unit tests for basename-related conditions in the FilterBuilder.
- * These tests validate filtering logic based on the basename (filename with extension)
- * of file paths provided by Flysystem's StorageAttributes.
- */
-class BasenameFiltersTraitTest extends TestCase
+final class BasenameFiltersTraitTest extends TestCase
 {
     /**
-     * Test that basenameEquals matches when the file's basename exactly matches one of the specified values.
-     *
-     * @throws Exception
+     * @return iterable<string, array{Closure(FilterBuilder): FilterBuilder, string, bool}>
      */
-    public function test_basename_equals()
+    public static function cases(): iterable
     {
-        $filter = new FilterBuilder();
-        $filter->basenameEquals(['final_report.txt']);
-
-        $item = $this->createMock(StorageAttributes::class);
-        $item->method('path')->willReturn('/files/final_report.txt');
-
-        $this->assertTrue($filter->matches($item));
+        yield 'equals' => [static fn(FilterBuilder $f) => $f->basenameEquals('file.txt'), 'docs/file.txt', true];
+        yield 'equals list' => [static fn(FilterBuilder $f) => $f->basenameEquals(['a.csv', 'file.txt']), 'file.txt', true];
+        yield 'equals needs extension' => [static fn(FilterBuilder $f) => $f->basenameEquals('file'), 'docs/file.txt', false];
+        yield 'not equals' => [static fn(FilterBuilder $f) => $f->basenameNotEquals('a.txt'), 'b.txt', true];
+        yield 'not equals excluded' => [static fn(FilterBuilder $f) => $f->basenameNotEquals(['a.txt', 'b.txt']), 'x/b.txt', false];
+        yield 'contains' => [static fn(FilterBuilder $f) => $f->basenameContains(['.tar', 'zip']), 'backup.tar.gz', true];
+        yield 'not contains' => [static fn(FilterBuilder $f) => $f->basenameNotContains(['~', '.swp']), 'notes.txt', true];
+        yield 'not contains excluded' => [static fn(FilterBuilder $f) => $f->basenameNotContains(['~', '.swp']), '.notes.txt.swp', false];
+        yield 'starts with' => [static fn(FilterBuilder $f) => $f->basenameStartsWith('log_'), 'x/log_1.txt', true];
+        yield 'ends with' => [static fn(FilterBuilder $f) => $f->basenameEndsWith(['.tar.gz', '.zip']), 'x/a.tar.gz', true];
+        yield 'ends with no match' => [static fn(FilterBuilder $f) => $f->basenameEndsWith('.php'), 'skip/file.txt', false];
+        yield 'ends with ignore case' => [static fn(FilterBuilder $f) => $f->basenameEndsWith('.JPG', ignoreCase: true), 'IMG_1.jpg', true];
+        yield 'regex' => [static fn(FilterBuilder $f) => $f->basenameMatchesRegex('/^IMG_\d+\.jpe?g$/i'), 'dcim/img_0042.JPG', true];
+        yield 'glob' => [static fn(FilterBuilder $f) => $f->basenameMatchesGlob('*.{jpg,png}'), 'a/b/c.png', true];
+        yield 'glob character class' => [static fn(FilterBuilder $f) => $f->basenameMatchesGlob('file[0-9].txt'), 'file7.txt', true];
+        yield 'glob negated character class' => [static fn(FilterBuilder $f) => $f->basenameMatchesGlob('file[!0-9].txt'), 'file7.txt', false];
     }
 
     /**
-     * Test that basenameNotEquals matches when the file's basename does not match any of the specified values.
-     *
-     * @throws Exception
+     * @param Closure(FilterBuilder): FilterBuilder $build
      */
-    public function test_basename_not_equals()
+    #[Test]
+    #[DataProvider('cases')]
+    public function basename_filters(Closure $build, string $path, bool $expected): void
     {
-        $filter = new FilterBuilder();
-        $filter->basenameNotEquals(['draft.doc']);
-
-        $item = $this->createMock(StorageAttributes::class);
-        $item->method('path')->willReturn('/documents/final.doc');
-
-        $this->assertTrue($filter->matches($item));
+        self::assertSame($expected, $build(new FilterBuilder())->matches(Items::file($path)));
     }
-
-    /**
-     * Test that basenameContains matches when the file's basename contains the specified substring(s).
-     *
-     * @throws Exception
-     */
-    public function test_basename_contains()
-    {
-        $filter = new FilterBuilder();
-        $filter->basenameContains(['report']);
-
-        $item = $this->createMock(StorageAttributes::class);
-        $item->method('path')->willReturn('/files/financial_report_2024.csv');
-
-        $this->assertTrue($filter->matches($item));
-    }
-
-    /**
-     * Test that basenameNotContains matches when the file's basename does not contain any of the specified substrings.
-     *
-     * @throws Exception
-     */
-    public function test_basename_not_contains()
-    {
-        $filter = new FilterBuilder();
-        $filter->basenameNotContains(['temp']);
-
-        $item = $this->createMock(StorageAttributes::class);
-        $item->method('path')->willReturn('/files/final_report.txt');
-
-        $this->assertTrue($filter->matches($item));
-    }
-
-    /**
-     * Test that basenameStartsWith matches when the basename starts with a given prefix.
-     *
-     * @throws Exception
-     */
-    public function test_basename_starts_with()
-    {
-        $filter = new FilterBuilder();
-        $filter->basenameStartsWith(['report_', 'invoice_']);
-
-        $item = $this->createMock(StorageAttributes::class);
-        $item->method('path')->willReturn('/archive/report_2024_final.txt');
-
-        $this->assertTrue($filter->matches($item));
-    }
-
-    /**
-     * Test that basenameStartsWith does not match when the basename does not start with any of the specified prefixes.
-     *
-     * @throws Exception
-     */
-    public function test_basename_starts_with_negative()
-    {
-        $filter = new FilterBuilder();
-        $filter->basenameStartsWith(['log_', 'debug_']);
-
-        $item = $this->createMock(StorageAttributes::class);
-        $item->method('path')->willReturn('/archive/report_2024_final.txt');
-
-        $this->assertFalse($filter->matches($item));
-    }
-
-    /**
-     * Test that basenameEndsWith matches when the basename ends with a given suffix.
-     *
-     * @throws Exception
-     */
-    public function test_basename_ends_with()
-    {
-        $filter = new FilterBuilder();
-        $filter->basenameEndsWith(['_final.txt', '_draft.csv']);
-
-        $item = $this->createMock(StorageAttributes::class);
-        $item->method('path')->willReturn('/documents/summary_final.txt');
-
-        $this->assertTrue($filter->matches($item));
-    }
-
-    /**
-     * Test that basenameEndsWith does not match when the basename does not end with any of the specified suffixes.
-     *
-     * @throws Exception
-     */
-    public function test_basename_ends_with_negative()
-    {
-        $filter = new FilterBuilder();
-        $filter->basenameEndsWith(['.json', '_temp.doc']);
-
-        $item = $this->createMock(StorageAttributes::class);
-        $item->method('path')->willReturn('/documents/summary_final.txt');
-
-        $this->assertFalse($filter->matches($item));
-    }
-
-
-
 }

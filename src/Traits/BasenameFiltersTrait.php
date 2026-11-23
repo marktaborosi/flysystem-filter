@@ -1,132 +1,117 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Marktaborosi\FlysystemFilter\Traits;
 
-use League\Flysystem\StorageAttributes;
+use Marktaborosi\FlysystemFilter\Condition\StringOperator;
+use Marktaborosi\FlysystemFilter\Condition\Subject;
+use Marktaborosi\FlysystemFilter\Exception\InvalidArgumentException;
 use Marktaborosi\FlysystemFilter\FilterBuilder;
 
 /**
- * Trait BasenameFiltersTrait
+ * Filters on the basename: the last path segment **with** its extension (`basename($path)`),
+ * e.g. `file.txt` for `docs/file.txt`.
  *
- * Provides filter methods for working with file and directory basenames.
- * The basename refers to the filename **with** its extension (e.g., `file.txt`).
- *
- * These filters operate on the result of `basename($item->path())`, which extracts
- * the last segment of a path — commonly used for filtering based on exact filenames.
- *
- * Designed to be used inside the {@see \Marktaborosi\FlysystemFilter\FilterBuilder} class.
- *
- * @package Marktaborosi\FlysystemFilter\Traits
+ * @internal used by {@see FilterBuilder}
  */
 trait BasenameFiltersTrait
 {
     /**
-     * Filter items whose basename matches one of the specified values exactly.
+     * @param string|int|list<string|int> $values
      *
-     * @param string|array $basename One or more basenames (e.g., ['file.txt', 'report.csv']).
-     * @return FilterBuilder|BasenameFiltersTrait
+     * @internal implemented by {@see FilterBuilder}
      */
-    public function basenameEquals(string|array $basename): self
+    abstract protected function addStringCondition(
+        Subject $subject,
+        StringOperator $operator,
+        string|int|array $values,
+        bool $ignoreCase = false,
+        bool $negate = false,
+    ): static;
+
+
+    /**
+     * Basename (filename with extension) is exactly one of the values.
+     *
+     * @param string|list<string> $basenames e.g. `['file.txt', 'report.csv']`
+     */
+    public function basenameEquals(string|array $basenames, bool $ignoreCase = false): static
     {
-        $basename = (array)$basename;
-        $this->addCondition(fn(StorageAttributes $item) => in_array(basename($item->path()), $basename));
-        return $this;
+        return $this->addStringCondition(Subject::Basename, StringOperator::Equals, $basenames, $ignoreCase);
     }
 
     /**
-     * Filter items whose basename does not match any of the specified values.
+     * Basename is none of the values.
      *
-     * @param string|array $basename One or more basenames to exclude.
-     * @return FilterBuilder|BasenameFiltersTrait
+     * @param string|list<string> $basenames
      */
-    public function basenameNotEquals(string|array $basename): self
+    public function basenameNotEquals(string|array $basenames, bool $ignoreCase = false): static
     {
-        $basename = (array)$basename;
-        $this->addCondition(fn(StorageAttributes $item) => !in_array(basename($item->path()), $basename));
-        return $this;
+        return $this->addStringCondition(Subject::Basename, StringOperator::Equals, $basenames, $ignoreCase, negate: true);
     }
 
     /**
-     * Filter items whose basename starts with one of the given prefixes.
+     * Basename contains at least one of the substrings.
      *
-     * @param string|array $prefixes One or more starting substrings to match (e.g., 'report_', 'log_').
-     * @return FilterBuilder|BasenameFiltersTrait
+     * @param string|list<string> $substrings
      */
-    public function basenameStartsWith(string|array $prefixes): self
+    public function basenameContains(string|array $substrings, bool $ignoreCase = false): static
     {
-        $prefixes = (array)$prefixes;
-
-        $this->addCondition(function (StorageAttributes $item) use ($prefixes) {
-            $basename = basename($item->path());
-
-            foreach ($prefixes as $prefix) {
-                if (str_starts_with($basename, $prefix)) {
-                    return true;
-                }
-            }
-
-            return false;
-        });
-
-        return $this;
+        return $this->addStringCondition(Subject::Basename, StringOperator::Contains, $substrings, $ignoreCase);
     }
 
     /**
-     * Filter items whose basename ends with one of the given suffixes.
+     * Basename contains none of the substrings.
      *
-     * @param string|array $suffixes One or more ending substrings to match (e.g., '.txt', '_final.csv').
-     * @return FilterBuilder|BasenameFiltersTrait
+     * @param string|list<string> $substrings
      */
-    public function basenameEndsWith(string|array $suffixes): self
+    public function basenameNotContains(string|array $substrings, bool $ignoreCase = false): static
     {
-        $suffixes = (array)$suffixes;
-
-        $this->addCondition(function (StorageAttributes $item) use ($suffixes) {
-            $basename = basename($item->path());
-
-            foreach ($suffixes as $suffix) {
-                if (str_ends_with($basename, $suffix)) {
-                    return true;
-                }
-            }
-
-            return false;
-        });
-
-        return $this;
+        return $this->addStringCondition(Subject::Basename, StringOperator::Contains, $substrings, $ignoreCase, negate: true);
     }
 
     /**
-     * Filter items whose basename contains at least one of the given substrings.
+     * Basename starts with one of the prefixes.
      *
-     * @param string|array $substrings One or more substrings to search within the basename.
-     * @return FilterBuilder|BasenameFiltersTrait
+     * @param string|list<string> $prefixes e.g. `'log_'`
      */
-    public function basenameContains(string|array $substrings): self
+    public function basenameStartsWith(string|array $prefixes, bool $ignoreCase = false): static
     {
-        $substrings = (array)$substrings;
-        $this->addCondition(fn(StorageAttributes $item) => array_reduce(
-            $substrings,
-            fn($carry, $substring) => $carry || str_contains(basename($item->path()), $substring),
-            false
-        ));
-        return $this;
+        return $this->addStringCondition(Subject::Basename, StringOperator::StartsWith, $prefixes, $ignoreCase);
     }
 
     /**
-     * Filter items whose basename does not contain any of the specified substrings.
+     * Basename ends with one of the suffixes.
      *
-     * @param string|array $substrings One or more substrings to ensure are absent from the basename.
-     * @return FilterBuilder|BasenameFiltersTrait
+     * @param string|list<string> $suffixes e.g. `'.tar.gz'`
      */
-    public function basenameNotContains(string|array $substrings): self
+    public function basenameEndsWith(string|array $suffixes, bool $ignoreCase = false): static
     {
-        $substrings = (array)$substrings;
-        $this->addCondition(fn(StorageAttributes $item) => array_reduce(
-            $substrings,
-            fn($carry, $substring) => $carry && !str_contains(basename($item->path()), $substring),
-            true
-        ));
-        return $this;
+        return $this->addStringCondition(Subject::Basename, StringOperator::EndsWith, $suffixes, $ignoreCase);
+    }
+
+    /**
+     * Basename matches a PCRE pattern (with delimiters), validated immediately.
+     *
+     * @param string|list<string> $patterns
+     *
+     * @throws InvalidArgumentException for an invalid pattern
+     */
+    public function basenameMatchesRegex(string|array $patterns): static
+    {
+        return $this->addStringCondition(Subject::Basename, StringOperator::Regex, $patterns);
+    }
+
+    /**
+     * Basename matches a glob pattern (`*`, `?`, `[abc]`, `{a,b}`).
+     *
+     * @param string|list<string> $patterns e.g. `'*.{jpg,png}'`
+     *
+     * @throws InvalidArgumentException for an invalid pattern
+     */
+    public function basenameMatchesGlob(string|array $patterns, bool $ignoreCase = false): static
+    {
+        return $this->addStringCondition(Subject::Basename, StringOperator::Glob, $patterns, $ignoreCase);
     }
 }

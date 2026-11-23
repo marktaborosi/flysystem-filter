@@ -1,82 +1,50 @@
 <?php
 
-namespace FilterBuilder\Traits;
+declare(strict_types=1);
 
+namespace Marktaborosi\FlysystemFilter\Tests\Unit\FilterBuilder\Traits;
+
+use Closure;
 use League\Flysystem\StorageAttributes;
 use Marktaborosi\FlysystemFilter\FilterBuilder;
-use PHPUnit\Framework\MockObject\Exception;
+use Marktaborosi\FlysystemFilter\Tests\Support\Items;
+use PHPUnit\Framework\Attributes\DataProvider;
+use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 
-/**
- * Class ExtensionTest
- *
- * Unit tests for extension-related filters in the FilterBuilder.
- * These tests ensure that file extensions are correctly matched, excluded,
- * and checked for substring presence in case-insensitive comparisons.
- */
-class ExtensionFiltersTraitTest extends TestCase
+final class ExtensionFiltersTraitTest extends TestCase
 {
     /**
-     * Test filtering by exact extension match (case-insensitive).
-     *
-     * @throws Exception
+     * @return iterable<string, array{Closure(FilterBuilder): FilterBuilder, StorageAttributes, bool}>
      */
-    public function test_extension_equals()
+    public static function cases(): iterable
     {
-        $filter = new FilterBuilder();
-        $filter->extensionEquals('txt');
-
-        $item = $this->createMock(StorageAttributes::class);
-        $item->method('path')->willReturn('/some/path/file.txt');
-
-        $this->assertTrue($filter->matches($item));
+        yield 'equals' => [static fn(FilterBuilder $f) => $f->extensionEquals('jpg'), Items::file('a.jpg'), true];
+        yield 'equals is case-insensitive by default' => [static fn(FilterBuilder $f) => $f->extensionEquals('jpg'), Items::file('IMG.JPG'), true];
+        yield 'equals case-sensitive on request' => [static fn(FilterBuilder $f) => $f->extensionEquals('jpg', ignoreCase: false), Items::file('IMG.JPG'), false];
+        yield 'equals list' => [static fn(FilterBuilder $f) => $f->extensionEquals(['txt', 'log']), Items::file('a.log'), true];
+        yield 'equals strips leading dot' => [static fn(FilterBuilder $f) => $f->extensionEquals('.txt'), Items::file('a.txt'), true];
+        yield 'equals uses last extension' => [static fn(FilterBuilder $f) => $f->extensionEquals('gz'), Items::file('a.tar.gz'), true];
+        yield 'equals no extension (no deprecation)' => [static fn(FilterBuilder $f) => $f->extensionEquals('txt'), Items::file('docs/README'), false];
+        yield 'equals ignores directories' => [static fn(FilterBuilder $f) => $f->extensionEquals('d'), Items::dir('conf.d'), false];
+        yield 'not equals' => [static fn(FilterBuilder $f) => $f->extensionNotEquals(['exe', 'bak']), Items::file('a.txt'), true];
+        yield 'not equals excluded' => [static fn(FilterBuilder $f) => $f->extensionNotEquals(['exe', 'bak']), Items::file('a.BAK'), false];
+        yield 'not equals without extension' => [static fn(FilterBuilder $f) => $f->extensionNotEquals('txt'), Items::file('README'), true];
+        yield 'contains' => [static fn(FilterBuilder $f) => $f->extensionContains('ml'), Items::file('index.xhtml'), true];
+        yield 'contains no extension' => [static fn(FilterBuilder $f) => $f->extensionContains('ml'), Items::file('Makefile'), false];
+        yield 'not contains' => [static fn(FilterBuilder $f) => $f->extensionNotContains('ml'), Items::file('a.json'), true];
+        yield 'not contains excluded' => [static fn(FilterBuilder $f) => $f->extensionNotContains(['ml', 'js']), Items::file('a.json'), false];
+        yield 'has extension' => [static fn(FilterBuilder $f) => $f->hasExtension(), Items::file('a.json'), true];
+        yield 'has no extension' => [static fn(FilterBuilder $f) => $f->hasExtension(), Items::file('LICENSE'), false];
     }
 
     /**
-     * Test filtering by extension not matching the given one.
-     *
-     * @throws Exception
+     * @param Closure(FilterBuilder): FilterBuilder $build
      */
-    public function test_extension_not_equals()
+    #[Test]
+    #[DataProvider('cases')]
+    public function extension_filters(Closure $build, StorageAttributes $item, bool $expected): void
     {
-        $filter = new FilterBuilder();
-        $filter->extensionNotEquals(['jpg', 'png']);
-
-        $item = $this->createMock(StorageAttributes::class);
-        $item->method('path')->willReturn('/documents/file.txt');
-
-        $this->assertTrue($filter->matches($item));
-    }
-
-    /**
-     * Test filtering where extension contains a specific substring (case-insensitive).
-     *
-     * @throws Exception
-     */
-    public function test_extension_contains()
-    {
-        $filter = new FilterBuilder();
-        $filter->extensionContains('x');
-
-        $item = $this->createMock(StorageAttributes::class);
-        $item->method('path')->willReturn('/some/file.txt');
-
-        $this->assertTrue($filter->matches($item));
-    }
-
-    /**
-     * Test filtering where extension does not contain the specified substring.
-     *
-     * @throws Exception
-     */
-    public function test_extension_not_contains()
-    {
-        $filter = new FilterBuilder();
-        $filter->extensionNotContains(['pdf', 'doc']);
-
-        $item = $this->createMock(StorageAttributes::class);
-        $item->method('path')->willReturn('/some/file.txt');
-
-        $this->assertTrue($filter->matches($item));
+        self::assertSame($expected, $build(new FilterBuilder())->matches($item));
     }
 }
