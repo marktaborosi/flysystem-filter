@@ -5,7 +5,10 @@ declare(strict_types=1);
 namespace Marktaborosi\FlysystemFilter\Laravel;
 
 use BadMethodCallException;
+use Closure;
 use Countable;
+use DateInterval;
+use DateTimeInterface;
 use Generator;
 use Illuminate\Filesystem\FilesystemAdapter;
 use Illuminate\Support\LazyCollection;
@@ -13,6 +16,7 @@ use IteratorAggregate;
 use League\Flysystem\DirectoryListing;
 use League\Flysystem\FilesystemOperator;
 use League\Flysystem\StorageAttributes;
+use Marktaborosi\FlysystemFilter\Condition\Condition;
 use Marktaborosi\FlysystemFilter\FilterBuilder;
 use Marktaborosi\FlysystemFilter\FlysystemFilter;
 use ReflectionMethod;
@@ -46,14 +50,14 @@ use Traversable;
  * @method self groupEnd()
  * @method self group_start()
  * @method self group_end()
- * @method self where(\Marktaborosi\FlysystemFilter\Condition\Condition|\Closure $condition)
- * @method self orWhere(\Marktaborosi\FlysystemFilter\Condition\Condition|\Closure $condition)
- * @method self whereNot(\Marktaborosi\FlysystemFilter\Condition\Condition|\Closure $condition)
- * @method self orWhereNot(\Marktaborosi\FlysystemFilter\Condition\Condition|\Closure $condition)
- * @method self whereAny(iterable<\Marktaborosi\FlysystemFilter\Condition\Condition|\Closure> $conditions)
- * @method self whereAll(iterable<\Marktaborosi\FlysystemFilter\Condition\Condition|\Closure> $conditions)
- * @method self when(mixed $value, \Closure $callback, ?\Closure $default = null)
- * @method self unless(mixed $value, \Closure $callback, ?\Closure $default = null)
+ * @method self where(Condition|Closure $condition)
+ * @method self orWhere(Condition|Closure $condition)
+ * @method self whereNot(Condition|Closure $condition)
+ * @method self orWhereNot(Condition|Closure $condition)
+ * @method self whereAny(iterable<Condition|Closure> $conditions)
+ * @method self whereAll(iterable<Condition|Closure> $conditions)
+ * @method self when(mixed $value, Closure $callback, ?Closure $default = null)
+ * @method self unless(mixed $value, Closure $callback, ?Closure $default = null)
  * @method self custom(callable $callback, ?string $description = null)
  * @method self isFile()
  * @method self isDirectory()
@@ -105,11 +109,11 @@ use Traversable;
  * @method self sizeLte(int|string $size)
  * @method self sizeBetween(int|string $min, int|string $max)
  * @method self isEmptyFile()
- * @method self lastModifiedBefore(int|string|\DateTimeInterface $date)
- * @method self lastModifiedAfter(int|string|\DateTimeInterface $date)
- * @method self lastModifiedBetween(int|string|\DateTimeInterface $start, int|string|\DateTimeInterface $end)
- * @method self lastModifiedWithin(\DateInterval|string $interval, ?\DateTimeInterface $now = null)
- * @method self lastModifiedOlderThan(\DateInterval|string $interval, ?\DateTimeInterface $now = null)
+ * @method self lastModifiedBefore(int|string|DateTimeInterface $date)
+ * @method self lastModifiedAfter(int|string|DateTimeInterface $date)
+ * @method self lastModifiedBetween(int|string|DateTimeInterface $start, int|string|DateTimeInterface $end)
+ * @method self lastModifiedWithin(DateInterval|string $interval, ?DateTimeInterface $now = null)
+ * @method self lastModifiedOlderThan(DateInterval|string $interval, ?DateTimeInterface $now = null)
  * @method self isPublic()
  * @method self isPrivate()
  * @method self visibilityEquals(string|list<string> $visibilities)
@@ -126,11 +130,11 @@ use Traversable;
  * @method self metadataIn(string $key, list<mixed> $values)
  * @method bool hasConditions()
  * @method string describe()
- * @method \Marktaborosi\FlysystemFilter\Condition\Condition toCondition()
+ * @method Condition toCondition()
  */
-final class StorageFilter implements IteratorAggregate, Countable, Stringable
+final readonly class StorageFilter implements IteratorAggregate, Countable, Stringable
 {
-    private readonly FilterBuilder $builder;
+    private FilterBuilder $builder;
 
     /**
      * @param string $directory directory to list, relative to the disk root (`''` = root)
@@ -138,9 +142,9 @@ final class StorageFilter implements IteratorAggregate, Countable, Stringable
      * @param FilterBuilder|null $builder an existing filter to start from (it is copied, not modified)
      */
     public function __construct(
-        private readonly FilesystemOperator $filesystem,
-        private readonly string $directory = '',
-        private readonly bool $recursive = true,
+        private FilesystemOperator $filesystem,
+        private string $directory = '',
+        private bool $recursive = true,
         ?FilterBuilder $builder = null,
     ) {
         $this->builder = $builder instanceof FilterBuilder ? clone $builder : new FilterBuilder();

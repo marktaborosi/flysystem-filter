@@ -38,15 +38,13 @@ final class FlysystemFilterServiceProvider extends ServiceProvider
             return;
         }
 
-        self::registerDiskMacro(self::MACRO, function (string $directory = '', bool $recursive = true, ?FilterBuilder $builder = null): StorageFilter {
-            return StorageFilter::on($this, $directory, $recursive, $builder);
-        });
+        $this->registerDiskMacro(self::MACRO, fn(string $directory = '', bool $recursive = true, ?FilterBuilder $builder = null): StorageFilter => StorageFilter::on($this, $directory, $recursive, $builder));
     }
 
     /**
      * @param-closure-this FilesystemAdapter $macro
      */
-    private static function registerDiskMacro(string $name, Closure $macro): void
+    private function registerDiskMacro(string $name, Closure $macro): void
     {
         FilesystemAdapter::macro($name, $macro);
     }
