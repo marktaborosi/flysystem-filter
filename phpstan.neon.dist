@@ -23,3 +23,6 @@ parameters:
         -
             identifiers: [method.notFound, staticMethod.notFound]
             path: tests/Integration/LaravelStorageMacroTest.php
+        -
+            identifier: method.notFound
+            path: tests/Integration/LaravelBulkOperationsTest.php
