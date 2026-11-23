@@ -14,17 +14,17 @@ $listing = $filesystem->listContents('', true);
 $onlyRecent = true;
 
 // Reusable, named filters.
-FilterBuilder::macro('isDocument', static fn(FilterBuilder $q) => $q->extensionEquals(['txt', 'md', 'pdf', 'docx']));
+FilterBuilder::macro('isDocument', static fn(FilterBuilder $q): FilterBuilder => $q->extensionEquals(['txt', 'md', 'pdf', 'docx']));
 
 $filter = FilterBuilder::create()
     ->isFile()
     ->not()->isHidden()
     ->whereAny([
         static fn(FilterBuilder $q) => $q->isDocument(),
-        static fn(FilterBuilder $q) => $q->pathMatchesGlob('**.{log,gz}'),
+        static fn(FilterBuilder $q): FilterBuilder => $q->pathMatchesGlob('**.{log,gz}'),
     ])
     ->sizeBetween('1B', '10M')
-    ->when($onlyRecent, static fn(FilterBuilder $q) => $q->lastModifiedWithin('10 years'));
+    ->when($onlyRecent, static fn(FilterBuilder $q): FilterBuilder => $q->lastModifiedWithin('10 years'));
 
 echo 'Filter: ' . $filter . PHP_EOL;
 

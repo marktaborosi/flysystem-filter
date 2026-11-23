@@ -42,7 +42,7 @@ final class LaravelIntegrationTest extends TestCase
      *
      * @return list<string>
      */
-    private static function paths(iterable $listing): array
+    private function paths(iterable $listing): array
     {
         $paths = [];
         foreach ($listing as $item) {
@@ -52,7 +52,7 @@ final class LaravelIntegrationTest extends TestCase
         return $paths;
     }
 
-    private static function fakeDisk(): FilesystemAdapter
+    private function fakeDisk(): FilesystemAdapter
     {
         $disk = Storage::fake('local');
         self::assertInstanceOf(FilesystemAdapter::class, $disk);
@@ -79,38 +79,38 @@ final class LaravelIntegrationTest extends TestCase
     #[Test]
     public function facade_filters_with_a_builder(): void
     {
-        $disk = self::fakeDisk();
+        $disk = $this->fakeDisk();
         $disk->put('keep/file.php', '<?php echo "ok";');
         $disk->put('skip/file.txt', 'not php');
 
         $listing = $disk->getDriver()->listContents('', true);
         $filtered = FlysystemFilterFacade::filter($listing, FlysystemFilterFacade::builder()->basenameEndsWith('.php'));
 
-        self::assertSame(['keep/file.php'], self::paths($filtered));
+        self::assertSame(['keep/file.php'], $this->paths($filtered));
     }
 
     #[Test]
     public function facade_filters_with_a_callable(): void
     {
-        $disk = self::fakeDisk();
+        $disk = $this->fakeDisk();
         $disk->put('log/test.log', 'log data');
         $disk->put('src/file.php', '<?php echo "ok";');
 
         $listing = $disk->getDriver()->listContents('', true);
         $filtered = FlysystemFilterFacade::filter($listing, static fn(StorageAttributes $item): bool => str_ends_with($item->path(), '.log'));
 
-        self::assertSame(['log/test.log'], self::paths($filtered));
+        self::assertSame(['log/test.log'], $this->paths($filtered));
     }
 
     #[Test]
     public function builder_works_directly_on_laravel_disks(): void
     {
-        $disk = self::fakeDisk();
+        $disk = $this->fakeDisk();
         $disk->put('a.jpg', 'x');
         $disk->put('b.txt', 'x');
 
         $filtered = $disk->getDriver()->listContents('', true)->filter(FilterBuilder::create()->isImage());
 
-        self::assertSame(['a.jpg'], self::paths($filtered));
+        self::assertSame(['a.jpg'], $this->paths($filtered));
     }
 }

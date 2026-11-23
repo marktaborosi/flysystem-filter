@@ -19,18 +19,18 @@ final class DepthFiltersTraitTest extends TestCase
      */
     public static function cases(): iterable
     {
-        yield 'root file depth 0' => [static fn(FilterBuilder $f) => $f->depthEquals(0), 'file.txt', true];
-        yield 'nested depth 1' => [static fn(FilterBuilder $f) => $f->depthEquals(1), 'documents/file.txt', true];
-        yield 'leading slash ignored' => [static fn(FilterBuilder $f) => $f->depthEquals(3), '/a/b/c/file.txt', true];
-        yield 'trailing slash ignored' => [static fn(FilterBuilder $f) => $f->depthEquals(1), 'a/b/', true];
-        yield 'gt' => [static fn(FilterBuilder $f) => $f->depthGt(1), 'a/b/c.txt', true];
-        yield 'gt exclusive' => [static fn(FilterBuilder $f) => $f->depthGt(2), 'a/b/c.txt', false];
-        yield 'gte' => [static fn(FilterBuilder $f) => $f->depthGte(2), 'a/b/c.txt', true];
-        yield 'lt' => [static fn(FilterBuilder $f) => $f->depthLt(1), 'c.txt', true];
-        yield 'lt exclusive' => [static fn(FilterBuilder $f) => $f->depthLt(1), 'a/c.txt', false];
-        yield 'lte' => [static fn(FilterBuilder $f) => $f->depthLte(1), 'a/c.txt', true];
-        yield 'between' => [static fn(FilterBuilder $f) => $f->depthBetween(1, 2), 'a/b/c.txt', true];
-        yield 'between outside' => [static fn(FilterBuilder $f) => $f->depthBetween(1, 2), 'a/b/c/d.txt', false];
+        yield 'root file depth 0' => [static fn(FilterBuilder $f): FilterBuilder => $f->depthEquals(0), 'file.txt', true];
+        yield 'nested depth 1' => [static fn(FilterBuilder $f): FilterBuilder => $f->depthEquals(1), 'documents/file.txt', true];
+        yield 'leading slash ignored' => [static fn(FilterBuilder $f): FilterBuilder => $f->depthEquals(3), '/a/b/c/file.txt', true];
+        yield 'trailing slash ignored' => [static fn(FilterBuilder $f): FilterBuilder => $f->depthEquals(1), 'a/b/', true];
+        yield 'gt' => [static fn(FilterBuilder $f): FilterBuilder => $f->depthGt(1), 'a/b/c.txt', true];
+        yield 'gt exclusive' => [static fn(FilterBuilder $f): FilterBuilder => $f->depthGt(2), 'a/b/c.txt', false];
+        yield 'gte' => [static fn(FilterBuilder $f): FilterBuilder => $f->depthGte(2), 'a/b/c.txt', true];
+        yield 'lt' => [static fn(FilterBuilder $f): FilterBuilder => $f->depthLt(1), 'c.txt', true];
+        yield 'lt exclusive' => [static fn(FilterBuilder $f): FilterBuilder => $f->depthLt(1), 'a/c.txt', false];
+        yield 'lte' => [static fn(FilterBuilder $f): FilterBuilder => $f->depthLte(1), 'a/c.txt', true];
+        yield 'between' => [static fn(FilterBuilder $f): FilterBuilder => $f->depthBetween(1, 2), 'a/b/c.txt', true];
+        yield 'between outside' => [static fn(FilterBuilder $f): FilterBuilder => $f->depthBetween(1, 2), 'a/b/c/d.txt', false];
     }
 
     /**

@@ -40,7 +40,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Set up PHP
         uses: shivammathur/setup-php@v2
@@ -55,11 +55,17 @@ jobs:
         run: echo "dir=$(composer config cache-files-dir)" >> "$GITHUB_OUTPUT"
 
       - name: Cache Composer packages
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: ${{ steps.composer-cache.outputs.dir }}
           key: composer-${{ matrix.php }}-L${{ matrix.laravel }}-${{ matrix.stability }}-${{ hashFiles('composer.json') }}
           restore-keys: composer-${{ matrix.php }}-L${{ matrix.laravel }}-${{ matrix.stability }}-
+
+      # Laravel 11 is end-of-life and every 11.x release has published security advisories,
+      # which Composer refuses to install by default. Allow them for this test-only job.
+      - name: Allow Laravel 11 despite security advisories (EOL, CI only)
+        if: matrix.laravel == '11'
+        run: composer config policy.advisories.block false || composer config audit.block-insecure false
 
       - name: Pin Laravel ${{ matrix.laravel }}
         run: composer require "laravel/framework:^${{ matrix.laravel }}.0" "orchestra/testbench:${{ matrix.testbench }}" --dev --no-update --no-interaction
@@ -75,7 +81,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Set up PHP
         uses: shivammathur/setup-php@v2
@@ -104,7 +110,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Set up PHP
         uses: shivammathur/setup-php@v2

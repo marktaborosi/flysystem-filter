@@ -22,7 +22,7 @@ final class MacroTest extends TestCase
     public function macros_add_reusable_named_filters(): void
     {
         FilterBuilder::macro('isLog', static fn(FilterBuilder $q): FilterBuilder => $q->where(
-            static fn(FilterBuilder $g) => $g->extensionEquals(['log', 'gz'])->and()->pathStartsWith('logs/'),
+            static fn(FilterBuilder $g): FilterBuilder => $g->extensionEquals(['log', 'gz'])->and()->pathStartsWith('logs/'),
         ));
 
         self::assertTrue(FilterBuilder::hasMacro('isLog'));
@@ -63,6 +63,6 @@ final class MacroTest extends TestCase
     {
         $this->expectException(InvalidArgumentException::class);
 
-        FilterBuilder::macro('isFile', static fn() => null);
+        FilterBuilder::macro('isFile', static fn(): null => null);
     }
 }

@@ -48,7 +48,7 @@ final class Time
     public static function ago(DateInterval|string $interval, ?DateTimeInterface $now = null): int
     {
         $interval = \is_string($interval) ? self::parseInterval($interval) : $interval;
-        $now = $now === null ? new DateTimeImmutable() : DateTimeImmutable::createFromInterface($now);
+        $now = $now instanceof DateTimeInterface ? DateTimeImmutable::createFromInterface($now) : new DateTimeImmutable();
 
         return $now->sub($interval)->getTimestamp();
     }
@@ -78,7 +78,7 @@ final class Time
             $parsed = null;
         }
 
-        if ($parsed === null || self::isZero($parsed)) {
+        if (!$parsed instanceof DateInterval || self::isZero($parsed)) {
             throw new InvalidArgumentException(\sprintf(
                 'Invalid interval "%s". Use e.g. "7 days", "2 weeks", "12 hours", "1 week 2 days" or an ISO 8601 duration like "P7D".',
                 $interval,

@@ -45,11 +45,7 @@ final class EvalEquivalenceTest extends TestCase
             /** @var bool $expected */
             $expected = eval('return ' . $expression . ';');
 
-            self::assertSame(
-                $expected,
-                $builder->matches($item),
-                \sprintf('Seed %d, case %d: %s  (builder: %s)', $seed, $case, $expression, $builder->describe()),
-            );
+            self::assertSame($expected, $builder->matches($item), \sprintf('Seed %d, case %d: %s  (builder: %s)', $seed, $case, $expression, $builder->describe()));
         }
     }
 
