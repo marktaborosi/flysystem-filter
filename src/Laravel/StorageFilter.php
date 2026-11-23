@@ -16,11 +16,14 @@ use IteratorAggregate;
 use League\Flysystem\DirectoryListing;
 use League\Flysystem\FilesystemOperator;
 use League\Flysystem\StorageAttributes;
+use Marktaborosi\FlysystemFilter\Bulk\BulkResult;
 use Marktaborosi\FlysystemFilter\Condition\Condition;
+use Marktaborosi\FlysystemFilter\Exception\InvalidArgumentException;
 use Marktaborosi\FlysystemFilter\FilterBuilder;
 use Marktaborosi\FlysystemFilter\FlysystemFilter;
 use ReflectionMethod;
 use Stringable;
+use Throwable;
 use Traversable;
 
 /**
@@ -140,12 +143,14 @@ final readonly class StorageFilter implements IteratorAggregate, Countable, Stri
      * @param string $directory directory to list, relative to the disk root (`''` = root)
      * @param bool $recursive whether to include sub-directories
      * @param FilterBuilder|null $builder an existing filter to start from (it is copied, not modified)
+     * @param bool $dryRun whether bulk operations only report what they would do
      */
     public function __construct(
         private FilesystemOperator $filesystem,
         private string $directory = '',
         private bool $recursive = true,
         ?FilterBuilder $builder = null,
+        private bool $dryRun = false,
     ) {
         $this->builder = $builder instanceof FilterBuilder ? clone $builder : new FilterBuilder();
     }
@@ -273,6 +278,240 @@ final readonly class StorageFilter implements IteratorAggregate, Countable, Stri
         }
 
         return $count;
+    }
+
+    // ---------------------------------------------------------------------
+    // Bulk operations
+    // ---------------------------------------------------------------------
+
+    /**
+     * Returns a copy of the query whose bulk operations only report what they would do.
+     *
+     * ```php
+     * $preview = Storage::disk('s3')->filter('tmp')->lastModifiedOlderThan('7 days')->dryRun()->delete();
+     * $preview->paths(); // files that would be deleted
+     * ```
+     */
+    public function dryRun(bool $enabled = true): self
+    {
+        return new self($this->filesystem, $this->directory, $this->recursive, $this->builder, $enabled);
+    }
+
+    /**
+     * Deletes the matching **files**. Matching directories are ignored.
+     */
+    public function delete(): BulkResult
+    {
+        return $this->bulk(
+            'delete',
+            null,
+            null,
+            false,
+            function (string $from): void {
+                $this->filesystem->delete($from);
+            },
+        );
+    }
+
+    /**
+     * Moves the matching files on the same disk.
+     *
+     * With a directory, the structure below the query's directory is kept:
+     * `filter('uploads')->move('archive')` moves `uploads/2025/a.jpg` to `archive/2025/a.jpg`.
+     * A closure receives each file and returns its full target path.
+     *
+     * Existing target files are skipped unless `$overwrite` is true.
+     *
+     * @param string|Closure(StorageAttributes): string $to target directory or path mapper
+     */
+    public function move(string|Closure $to, bool $overwrite = false): BulkResult
+    {
+        return $this->bulk(
+            'move',
+            $to,
+            $this->filesystem,
+            $overwrite,
+            function (string $from, string $target): void {
+                $this->filesystem->move($from, $target);
+            },
+        );
+    }
+
+    /**
+     * Copies the matching files on the same disk. Targets work like in {@see move()}.
+     *
+     * @param string|Closure(StorageAttributes): string $to target directory or path mapper
+     */
+    public function copy(string|Closure $to, bool $overwrite = false): BulkResult
+    {
+        return $this->bulk(
+            'copy',
+            $to,
+            $this->filesystem,
+            $overwrite,
+            function (string $from, string $target): void {
+                $this->filesystem->copy($from, $target);
+            },
+        );
+    }
+
+    /**
+     * Copies the matching files to another disk (streamed). Targets work like in {@see move()};
+     * with the default `''` the paths below the query's directory are kept as they are.
+     *
+     * ```php
+     * Storage::disk('local')->filter('exports')->isFile()->copyTo(Storage::disk('s3'), 'backups/exports');
+     * ```
+     *
+     * @param string|Closure(StorageAttributes): string $to target directory or path mapper
+     */
+    public function copyTo(FilesystemAdapter|FilesystemOperator $disk, string|Closure $to = '', bool $overwrite = false): BulkResult
+    {
+        $target = $disk instanceof FilesystemAdapter ? $disk->getDriver() : $disk;
+
+        return $this->bulk(
+            'copyTo',
+            $to,
+            $target,
+            $overwrite,
+            function (string $from, string $to) use ($target): void {
+                $this->stream($from, $target, $to);
+            },
+        );
+    }
+
+    /**
+     * Moves the matching files to another disk: each file is streamed to the target disk
+     * and deleted from this one once the copy succeeded.
+     *
+     * @param string|Closure(StorageAttributes): string $to target directory or path mapper
+     */
+    public function moveTo(FilesystemAdapter|FilesystemOperator $disk, string|Closure $to = '', bool $overwrite = false): BulkResult
+    {
+        $target = $disk instanceof FilesystemAdapter ? $disk->getDriver() : $disk;
+
+        return $this->bulk(
+            'moveTo',
+            $to,
+            $target,
+            $overwrite,
+            function (string $from, string $to) use ($target): void {
+                $this->stream($from, $target, $to);
+                $this->filesystem->delete($from);
+            },
+        );
+    }
+
+    /**
+     * Runs an operation on every matching file.
+     *
+     * Matches are collected **before** anything is changed, so files moved or copied into
+     * the listed directory are never processed twice.
+     *
+     * @param string|Closure(StorageAttributes): string|null $to target directory, mapper, or null (delete)
+     * @param Closure(string, string): void $action receives the source and target path
+     */
+    private function bulk(string $operation, string|Closure|null $to, ?FilesystemOperator $target, bool $overwrite, Closure $action): BulkResult
+    {
+        $files = [];
+
+        foreach ($this->listing() as $item) {
+            if ($item->isFile()) {
+                $files[] = $item;
+            }
+        }
+
+        $processed = [];
+        $skipped = [];
+        $failed = [];
+
+        foreach ($files as $file) {
+            $from = $file->path();
+
+            try {
+                $destination = $to === null ? null : $this->targetPath($file, $to);
+            } catch (Throwable $exception) {
+                $failed[] = ['from' => $from, 'to' => null, 'error' => $exception];
+
+                continue;
+            }
+
+            if ($destination !== null && $target === $this->filesystem && $destination === trim($from, '/')) {
+                $skipped[] = ['from' => $from, 'to' => $destination, 'reason' => 'source and target are the same'];
+
+                continue;
+            }
+
+            if ($destination !== null && $target instanceof FilesystemOperator && !$overwrite) {
+                try {
+                    $exists = $target->fileExists($destination);
+                } catch (Throwable $exception) {
+                    $failed[] = ['from' => $from, 'to' => $destination, 'error' => $exception];
+
+                    continue;
+                }
+
+                if ($exists) {
+                    $skipped[] = ['from' => $from, 'to' => $destination, 'reason' => 'target exists'];
+
+                    continue;
+                }
+            }
+
+            if (!$this->dryRun) {
+                try {
+                    $action($from, $destination ?? $from);
+                } catch (Throwable $exception) {
+                    $failed[] = ['from' => $from, 'to' => $destination, 'error' => $exception];
+
+                    continue;
+                }
+            }
+
+            $processed[] = ['from' => $from, 'to' => $destination];
+        }
+
+        return new BulkResult($operation, $this->dryRun, $processed, $skipped, $failed);
+    }
+
+    /**
+     * @param string|Closure(StorageAttributes): string $to
+     */
+    private function targetPath(StorageAttributes $file, string|Closure $to): string
+    {
+        if ($to instanceof Closure) {
+            $path = $to($file);
+
+            if (!\is_string($path) || trim($path, '/') === '') {
+                throw new InvalidArgumentException(\sprintf('The target path mapper must return a non-empty string for "%s".', $file->path()));
+            }
+
+            return trim($path, '/');
+        }
+
+        $base = trim($this->directory, '/');
+        $relative = trim($file->path(), '/');
+
+        if ($base !== '' && str_starts_with($relative, $base . '/')) {
+            $relative = substr($relative, \strlen($base) + 1);
+        }
+
+        $directory = trim($to, '/');
+
+        return $directory === '' ? $relative : $directory . '/' . $relative;
+    }
+
+    private function stream(string $from, FilesystemOperator $target, string $to): void
+    {
+        $stream = $this->filesystem->readStream($from);
+
+        try {
+            $target->writeStream($to, $stream);
+        } finally {
+            if (\is_resource($stream)) {
+                fclose($stream);
+            }
+        }
     }
 
     /**

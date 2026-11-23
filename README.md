@@ -40,6 +40,7 @@ $images = $filesystem->listContents('uploads', true)->filter($filter);
 - [Saving and loading filters (JSON)](#saving-and-loading-filters-json)
 - [Laravel integration](#laravel-integration)
   - [Filtering a disk: `Storage::disk()->filter()`](#filtering-a-disk-storagedisk-filter)
+  - [Bulk operations: delete, move, copy](#bulk-operations-delete-move-copy)
 - [Upgrading from 3.x](#upgrading-from-3x)
 - [Development](#development)
 
@@ -53,7 +54,7 @@ $images = $filesystem->listContents('uploads', true)->filter($filter);
 - **Native Flysystem integration:** pass the builder straight to `$listing->filter($builder)`.
 - **Serializable:** save filters as JSON and load them back, safely.
 - **Extensible:** your own condition classes, custom callbacks and macros.
-- **Laravel 11, 12 and 13:** filter any disk with `Storage::disk('s3')->filter('uploads')->isImage()->paths()`, plus an auto-discovered service provider and facade. Projects without Laravel don't pull in any Laravel dependency.
+- **Laravel 11, 12 and 13:** filter any disk with `Storage::disk('s3')->filter('uploads')->isImage()->paths()`, then delete, move or copy the matches in bulk (with dry runs). An auto-discovered service provider and facade are included. Projects without Laravel don't pull in any Laravel dependency.
 
 ## Requirements
 
@@ -582,6 +583,67 @@ StorageFilter::on(Storage::disk('s3'), 'uploads')->isImage()->paths();
 ```
 
 If another package already registered a `filter` macro on disks, this package keeps it and does not register its own. Use `StorageFilter::on()` in that case.
+
+### Bulk operations: delete, move, copy
+
+*Since 4.1.* The matching files of a disk query can be deleted, moved or copied in one call. The query can also copy or move them to another disk:
+
+```php
+// Delete temporary files older than a week
+Storage::disk('local')->filter('tmp')->isFile()->lastModifiedOlderThan('7 days')->delete();
+
+// Archive last year's invoices: uploads/invoices/2025/a.pdf → archive/2025/a.pdf
+Storage::disk('s3')->filter('uploads/invoices')->extensionEquals('pdf')->move('archive');
+
+// Back up exports to another disk
+Storage::disk('local')->filter('exports')->isFile()->copyTo(Storage::disk('s3'), 'backups/exports');
+```
+
+| Method | What it does |
+|---|---|
+| `delete()` | Deletes the matching files |
+| `move($to, $overwrite = false)` | Moves the matching files on the same disk |
+| `copy($to, $overwrite = false)` | Copies the matching files on the same disk |
+| `copyTo($disk, $to = '', $overwrite = false)` | Copies the matching files to another disk (streamed) |
+| `moveTo($disk, $to = '', $overwrite = false)` | Copies the files to another disk, then deletes each original once its copy succeeded |
+| `dryRun()` | Returns a copy of the query whose operations only report what they would do |
+
+**Targets.** `$to` can be a directory or a closure:
+
+- **A directory:** the structure below the query's directory is kept, so `filter('uploads')->move('archive')` moves `uploads/2025/a.jpg` to `archive/2025/a.jpg`. With `copyTo()` / `moveTo()` the default `''` keeps the paths as they are.
+- **A closure:** it receives each file and returns its full target path, e.g. `->move(fn (StorageAttributes $file) => 'flat/' . basename($file->path()))`.
+
+**Safe by default.**
+
+- Only **files** are touched. Matching directories are ignored.
+- Existing target files are **skipped**. Pass `overwrite: true` to replace them.
+- All matches are collected before anything changes. A file moved into a directory that is being listed is never processed twice.
+- One failing file does not stop the operation: every file is attempted, and failures are reported.
+
+**Preview with a dry run:**
+
+```php
+$preview = Storage::disk('s3')->filter('tmp')->lastModifiedOlderThan('30 days')->dryRun()->delete();
+
+$preview->summary();   // "delete (dry run): 128 processed, 0 skipped, 0 failed"
+$preview->paths();     // the files that would be deleted
+```
+
+**The result.** Every operation returns a `BulkResult`:
+
+```php
+$result = Storage::disk('s3')->filter('uploads')->isImage()->move('archive');
+
+count($result);           // number of processed files
+$result->paths();         // processed source paths
+$result->map();           // ['uploads/a.jpg' => 'archive/a.jpg', ...]
+$result->skippedPaths();  // ['uploads/b.jpg' => 'target exists', ...]
+$result->failures();      // ['uploads/c.jpg' => Throwable, ...]
+$result->successful();    // true when nothing failed
+$result->summary();       // "move: 12 processed, 1 skipped, 0 failed"
+
+$result->throw();         // throws BulkOperationException if anything failed, otherwise returns the result
+```
 
 ### Example: using `listContents()`
 

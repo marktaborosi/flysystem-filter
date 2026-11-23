@@ -14,6 +14,15 @@ This project adheres to [Semantic Versioning](https://semver.org).
 - `filter($directory, $recursive = true, $builder = null)` accepts an existing `FilterBuilder` to start from. The builder is copied, not modified.
 - `StorageFilter::on($disk, …)`: a fully typed alternative to the macro for IDEs and static analysis without Larastan. It works with any Flysystem `FilesystemOperator`, too.
 - `FilterBuilder` macros can be used on `StorageFilter` queries as well.
+- **Bulk operations** on disk queries: `delete()`, `move($to)`, `copy($to)`, `copyTo($disk, $to)` and `moveTo($disk, $to)`.
+  ```php
+  Storage::disk('local')->filter('tmp')->isFile()->lastModifiedOlderThan('7 days')->delete();
+  Storage::disk('s3')->filter('uploads')->isImage()->move('archive');
+  ```
+  - A target is a directory (the structure below the query's directory is kept) or a `Closure(StorageAttributes): string` path mapper.
+  - Safe defaults: only files are touched, existing targets are skipped unless `overwrite: true`, and all matches are collected before anything changes. One failing file does not stop the rest.
+  - `dryRun()` previews an operation without changing anything.
+  - Every operation returns a `BulkResult` with `paths()`, `map()`, `skippedPaths()`, `failures()`, `successful()`, `summary()` and `throw()`. `throw()` raises a `BulkOperationException` if anything failed.
 
 ### Changed
 - The service provider is no longer deferred, because it registers the disk macro when the application boots. An existing `filter` macro registered by another package is left untouched.
