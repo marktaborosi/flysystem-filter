@@ -19,3 +19,7 @@ parameters:
         -
             identifier: method.notFound
             path: tests/Unit/FilterBuilder/MacroTest.php
+        # Laravel disk macros are invisible to PHPStan without Larastan.
+        -
+            identifiers: [method.notFound, staticMethod.notFound]
+            path: tests/Integration/LaravelStorageMacroTest.php

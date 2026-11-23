@@ -3,6 +3,23 @@
 All notable changes to **Flysystem Filter** will be documented in this file.  
 This project adheres to [Semantic Versioning](https://semver.org).
 
+## [4.1.0] – Unreleased
+
+### Added
+- **Laravel disk macro:** `Storage::disk('s3')->filter('uploads')` (or `Storage::filter()` on the default disk) returns a `StorageFilter` query. Every `FilterBuilder` method can be chained on it. Results come from `paths()`, `get()`, `first()`, `exists()`, `doesntExist()`, `count()`, or by iterating the query.
+  ```php
+  Storage::disk('s3')->filter('uploads')->isImage()->sizeGt('5M')->paths();
+  ```
+- Results are lazy `LazyCollection`s, so `first()` and `exists()` stop listing at the first match. Queries can be reused.
+- `filter($directory, $recursive = true, $builder = null)` accepts an existing `FilterBuilder` to start from. The builder is copied, not modified.
+- `StorageFilter::on($disk, …)`: a fully typed alternative to the macro for IDEs and static analysis without Larastan. It works with any Flysystem `FilesystemOperator`, too.
+- `FilterBuilder` macros can be used on `StorageFilter` queries as well.
+
+### Changed
+- The service provider is no longer deferred, because it registers the disk macro when the application boots. An existing `filter` macro registered by another package is left untouched.
+
+---
+
 ## [4.0.0] – 2026-11-23
 
 A rewrite of the evaluation core and a much smarter builder. See [UPGRADE.md](UPGRADE.md) for a step-by-step guide.
