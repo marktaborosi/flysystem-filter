@@ -78,23 +78,23 @@ final class ConditionSerializer
         return match ($type) {
             'all' => new AllOf(...$this->children($data)),
             'any' => new AnyOf(...$this->children($data)),
-            'not' => new Not($this->fromArray(self::arrayValue($data, 'condition'))),
+            'not' => new Not($this->fromArray($this->arrayValue($data, 'condition'))),
             'string' => new StringCondition(
-                self::enum(Subject::class, $data, 'subject'),
+                $this->enum(Subject::class, $data, 'subject'),
                 $this->stringOperator($data),
-                self::stringList($data, 'values'),
-                self::bool($data, 'ignoreCase'),
+                $this->stringList($data, 'values'),
+                $this->bool($data, 'ignoreCase'),
                 $this->mimeTypeDetector,
             ),
-            'size' => new SizeCondition(self::enum(Comparison::class, $data, 'operator'), self::nonNegativeInt($data, 'bytes')),
-            'lastModified' => new LastModifiedCondition(self::enum(Comparison::class, $data, 'operator'), self::int($data, 'timestamp')),
-            'depth' => new DepthCondition(self::enum(Comparison::class, $data, 'operator'), self::nonNegativeInt($data, 'depth')),
+            'size' => new SizeCondition($this->enum(Comparison::class, $data, 'operator'), $this->nonNegativeInt($data, 'bytes')),
+            'lastModified' => new LastModifiedCondition($this->enum(Comparison::class, $data, 'operator'), $this->int($data, 'timestamp')),
+            'depth' => new DepthCondition($this->enum(Comparison::class, $data, 'operator'), $this->nonNegativeInt($data, 'depth')),
             'isFile' => new IsFile(),
             'isDirectory' => new IsDirectory(),
             'isHidden' => new IsHidden(),
-            'isKnown' => new IsKnown(self::enum(Subject::class, $data, 'subject'), $this->mimeTypeDetector),
-            'hasMetadata' => new HasMetadata(self::string($data, 'key')),
-            'metadataEquals' => new MetadataEquals(self::string($data, 'key'), array_values(self::arrayValue($data, 'values'))),
+            'isKnown' => new IsKnown($this->enum(Subject::class, $data, 'subject'), $this->mimeTypeDetector),
+            'hasMetadata' => new HasMetadata($this->string($data, 'key')),
+            'metadataEquals' => new MetadataEquals($this->string($data, 'key'), array_values($this->arrayValue($data, 'values'))),
             default => throw new InvalidArgumentException(\sprintf('Invalid filter definition: unknown type "%s".', $type)),
         };
     }
@@ -104,7 +104,7 @@ final class ConditionSerializer
      */
     private function stringOperator(array $data): StringOperator
     {
-        $operator = self::enum(StringOperator::class, $data, 'operator');
+        $operator = $this->enum(StringOperator::class, $data, 'operator');
 
         if ($operator === StringOperator::Regex && !$this->allowRegex) {
             throw new InvalidArgumentException('Invalid filter definition: regular expressions are not allowed.');
@@ -122,7 +122,7 @@ final class ConditionSerializer
     {
         $children = [];
 
-        foreach (self::arrayValue($data, 'conditions') as $child) {
+        foreach ($this->arrayValue($data, 'conditions') as $child) {
             if (!\is_array($child)) {
                 throw new InvalidArgumentException('Invalid filter definition: "conditions" must be a list of objects.');
             }
@@ -140,7 +140,7 @@ final class ConditionSerializer
      *
      * @return T
      */
-    private static function enum(string $enum, array $data, string $key): BackedEnum
+    private function enum(string $enum, array $data, string $key): BackedEnum
     {
         $value = $data[$key] ?? null;
         $case = \is_string($value) ? $enum::tryFrom($value) : null;
@@ -163,7 +163,7 @@ final class ConditionSerializer
      *
      * @return array<mixed>
      */
-    private static function arrayValue(array $data, string $key): array
+    private function arrayValue(array $data, string $key): array
     {
         $value = $data[$key] ?? null;
 
@@ -179,11 +179,11 @@ final class ConditionSerializer
      *
      * @return list<string>
      */
-    private static function stringList(array $data, string $key): array
+    private function stringList(array $data, string $key): array
     {
         $values = [];
 
-        foreach (self::arrayValue($data, $key) as $value) {
+        foreach ($this->arrayValue($data, $key) as $value) {
             if (!\is_string($value)) {
                 throw new InvalidArgumentException(\sprintf('Invalid filter definition: "%s" must be a list of strings.', $key));
             }
@@ -196,7 +196,7 @@ final class ConditionSerializer
     /**
      * @param array<string, mixed> $data
      */
-    private static function string(array $data, string $key): string
+    private function string(array $data, string $key): string
     {
         $value = $data[$key] ?? null;
 
@@ -210,7 +210,7 @@ final class ConditionSerializer
     /**
      * @param array<string, mixed> $data
      */
-    private static function int(array $data, string $key): int
+    private function int(array $data, string $key): int
     {
         $value = $data[$key] ?? null;
 
@@ -224,9 +224,9 @@ final class ConditionSerializer
     /**
      * @param array<string, mixed> $data
      */
-    private static function nonNegativeInt(array $data, string $key): int
+    private function nonNegativeInt(array $data, string $key): int
     {
-        $value = self::int($data, $key);
+        $value = $this->int($data, $key);
 
         if ($value < 0) {
             throw new InvalidArgumentException(\sprintf('Invalid filter definition: "%s" cannot be negative.', $key));
@@ -238,7 +238,7 @@ final class ConditionSerializer
     /**
      * @param array<string, mixed> $data
      */
-    private static function bool(array $data, string $key): bool
+    private function bool(array $data, string $key): bool
     {
         $value = $data[$key] ?? false;
 

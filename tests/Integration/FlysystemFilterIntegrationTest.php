@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Marktaborosi\FlysystemFilter\Tests\Integration;
 
+use League\Flysystem\DirectoryListing;
 use League\Flysystem\Filesystem;
 use League\Flysystem\Local\LocalFilesystemAdapter;
 use League\Flysystem\StorageAttributes;
@@ -52,7 +53,7 @@ final class FlysystemFilterIntegrationTest extends TestCase
      *
      * @return list<string>
      */
-    private static function paths(iterable $listing): array
+    private function paths(iterable $listing): array
     {
         $paths = [];
         foreach ($listing as $item) {
@@ -68,7 +69,7 @@ final class FlysystemFilterIntegrationTest extends TestCase
     {
         $filtered = (new FlysystemFilter())->filter($this->fixtures->listContents('', true), (new FilterBuilder())->isFile());
 
-        self::assertSame(['another-test-notes.txt', 'console.log', 'dummy.jpg', 'test-notes.txt'], self::paths($filtered));
+        self::assertSame(['another-test-notes.txt', 'console.log', 'dummy.jpg', 'test-notes.txt'], $this->paths($filtered));
     }
 
     #[Test]
@@ -78,16 +79,16 @@ final class FlysystemFilterIntegrationTest extends TestCase
             ->isFile()
             ->groupStart()->filenameContains('console')->or()->filenameContains('dummy')->groupEnd();
 
-        self::assertSame(['console.log', 'dummy.jpg'], self::paths($this->fixtures->listContents('', true)->filter($filter)));
+        self::assertSame(['console.log', 'dummy.jpg'], $this->paths($this->fixtures->listContents('', true)->filter($filter)));
     }
 
     #[Test]
     public function mime_and_size_with_real_metadata(): void
     {
-        $listing = fn() => $this->fixtures->listContents('', true);
+        $listing = fn(): DirectoryListing => $this->fixtures->listContents('', true);
 
-        self::assertSame(['another-test-notes.txt'], self::paths($listing()->filter(FilterBuilder::create()->isText()->sizeGt(10))));
-        self::assertSame(['dummy.jpg'], self::paths($listing()->filter(FilterBuilder::create()->isImage()->isEmptyFile())));
+        self::assertSame(['another-test-notes.txt'], $this->paths($listing()->filter(FilterBuilder::create()->isText()->sizeGt(10))));
+        self::assertSame(['dummy.jpg'], $this->paths($listing()->filter(FilterBuilder::create()->isImage()->isEmptyFile())));
     }
 
     #[Test]
@@ -96,26 +97,23 @@ final class FlysystemFilterIntegrationTest extends TestCase
         $filter = FilterBuilder::create()
             ->isFile()
             ->not()->isHidden()
-            ->where(static fn(FilterBuilder $q) => $q
+            ->where(static fn(FilterBuilder $q): FilterBuilder => $q
                 ->pathMatchesGlob('logs/**.{log,gz}')
                 ->or()
                 ->isImage()->inDirectory('images', recursive: true));
 
-        self::assertSame(
-            ['images/cat.JPG', 'images/raw/dog.png', 'logs/2025/app.log', 'logs/2025/app.log.gz', 'logs/today.log'],
-            self::paths($this->temp->listContents('', true)->filter($filter)),
-        );
+        self::assertSame(['images/cat.JPG', 'images/raw/dog.png', 'logs/2025/app.log', 'logs/2025/app.log.gz', 'logs/today.log'], $this->paths($this->temp->listContents('', true)->filter($filter)));
     }
 
     #[Test]
     public function hidden_empty_and_recent(): void
     {
-        $listing = fn() => $this->temp->listContents('', true);
+        $listing = fn(): DirectoryListing => $this->temp->listContents('', true);
 
-        self::assertSame(['.env', '.git', '.git/config'], self::paths($listing()->filter(FilterBuilder::create()->isHidden())));
-        self::assertSame(['empty.txt'], self::paths($listing()->filter(FilterBuilder::create()->isEmptyFile())));
-        self::assertSame(['logs/2025/app.log'], self::paths($listing()->filter(FilterBuilder::create()->sizeGte('2K'))));
-        self::assertCount(8, self::paths($listing()->filter(FilterBuilder::create()->isFile()->lastModifiedWithin('1 hour'))));
+        self::assertSame(['.env', '.git', '.git/config'], $this->paths($listing()->filter(FilterBuilder::create()->isHidden())));
+        self::assertSame(['empty.txt'], $this->paths($listing()->filter(FilterBuilder::create()->isEmptyFile())));
+        self::assertSame(['logs/2025/app.log'], $this->paths($listing()->filter(FilterBuilder::create()->sizeGte('2K'))));
+        self::assertCount(8, $this->paths($listing()->filter(FilterBuilder::create()->isFile()->lastModifiedWithin('1 hour'))));
     }
 
     #[Test]
@@ -124,9 +122,6 @@ final class FlysystemFilterIntegrationTest extends TestCase
         $filter = FilterBuilder::create()->isFile()->not()->isHidden()->extensionEquals(['log', 'png']);
         $restored = FilterBuilder::fromJson((string) json_encode($filter));
 
-        self::assertSame(
-            self::paths($this->temp->listContents('', true)->filter($filter)),
-            self::paths($this->temp->listContents('', true)->filter($restored)),
-        );
+        self::assertSame($this->paths($this->temp->listContents('', true)->filter($filter)), $this->paths($this->temp->listContents('', true)->filter($restored)));
     }
 }

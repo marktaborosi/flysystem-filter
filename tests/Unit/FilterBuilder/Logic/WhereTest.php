@@ -20,7 +20,7 @@ final class WhereTest extends TestCase
     {
         $filter = (new FilterBuilder())
             ->isFile()
-            ->where(static fn(FilterBuilder $q) => $q->extensionEquals('log')->or()->pathStartsWith('debug/'));
+            ->where(static fn(FilterBuilder $q): FilterBuilder => $q->extensionEquals('log')->or()->pathStartsWith('debug/'));
 
         self::assertTrue($filter->matches(Items::file('a.log')));
         self::assertTrue($filter->matches(Items::file('debug/a.txt')));
@@ -64,7 +64,7 @@ final class WhereTest extends TestCase
     {
         $filter = (new FilterBuilder())
             ->isDirectory()
-            ->orWhere(static fn(FilterBuilder $q) => $q->extensionEquals('txt')->whereNot(static fn(FilterBuilder $n) => $n->pathStartsWith('tmp/')));
+            ->orWhere(static fn(FilterBuilder $q): FilterBuilder => $q->extensionEquals('txt')->whereNot(static fn(FilterBuilder $n): FilterBuilder => $n->pathStartsWith('tmp/')));
 
         self::assertTrue($filter->matches(Items::dir('docs')));
         self::assertTrue($filter->matches(Items::file('a.txt')));
@@ -78,7 +78,7 @@ final class WhereTest extends TestCase
         $filter = new FilterBuilder();
 
         foreach (['txt', 'md'] as $extension) {
-            $filter->orWhere(static fn(FilterBuilder $q) => $q->extensionEquals($extension));
+            $filter->orWhere(static fn(FilterBuilder $q): FilterBuilder => $q->extensionEquals($extension));
         }
 
         self::assertTrue($filter->matches(Items::file('a.md')));
@@ -88,7 +88,7 @@ final class WhereTest extends TestCase
     #[Test]
     public function or_where_not(): void
     {
-        $filter = (new FilterBuilder())->isDirectory()->orWhereNot(static fn(FilterBuilder $q) => $q->sizeGt('1K'));
+        $filter = (new FilterBuilder())->isDirectory()->orWhereNot(static fn(FilterBuilder $q): FilterBuilder => $q->sizeGt('1K'));
 
         self::assertTrue($filter->matches(Items::dir('docs')));
         self::assertTrue($filter->matches(Items::file('small', 10)));
@@ -98,7 +98,7 @@ final class WhereTest extends TestCase
     #[Test]
     public function empty_where_group_is_ignored_together_with_its_operator(): void
     {
-        $filter = (new FilterBuilder())->isFile()->or()->where(static fn(FilterBuilder $q) => $q)->not()->where(static fn(FilterBuilder $q) => null);
+        $filter = (new FilterBuilder())->isFile()->or()->where(static fn(FilterBuilder $q): FilterBuilder => $q)->not()->where(static fn(FilterBuilder $q): null => null);
 
         self::assertTrue($filter->matches(Items::file('a.txt')));
         self::assertFalse($filter->matches(Items::dir('docs')));
@@ -109,10 +109,10 @@ final class WhereTest extends TestCase
     {
         $filter = (new FilterBuilder())
             ->whereAny([
-                static fn(FilterBuilder $q) => $q->extensionEquals('jpg'),
-                static fn(FilterBuilder $q) => $q->extensionEquals('png'),
+                static fn(FilterBuilder $q): FilterBuilder => $q->extensionEquals('jpg'),
+                static fn(FilterBuilder $q): FilterBuilder => $q->extensionEquals('png'),
             ])
-            ->whereAll([new IsFile(), static fn(FilterBuilder $q) => $q->sizeLt('1M')]);
+            ->whereAll([new IsFile(), static fn(FilterBuilder $q): FilterBuilder => $q->sizeLt('1M')]);
 
         self::assertTrue($filter->matches(Items::file('a.png', 10)));
         self::assertFalse($filter->matches(Items::file('a.png', 5_000_000)));
@@ -134,8 +134,8 @@ final class WhereTest extends TestCase
     {
         $build = static fn(bool $onlyLogs, bool $includeHidden): FilterBuilder => (new FilterBuilder())
             ->isFile()
-            ->when($onlyLogs, static fn(FilterBuilder $q) => $q->extensionEquals('log'))
-            ->unless($includeHidden, static fn(FilterBuilder $q) => $q->not()->isHidden());
+            ->when($onlyLogs, static fn(FilterBuilder $q): FilterBuilder => $q->extensionEquals('log'))
+            ->unless($includeHidden, static fn(FilterBuilder $q): FilterBuilder => $q->not()->isHidden());
 
         self::assertSame('is file AND extension equals log AND NOT is hidden', $build(true, false)->describe());
         self::assertSame('is file', $build(false, true)->describe());
@@ -145,9 +145,9 @@ final class WhereTest extends TestCase
     public function when_passes_the_value_and_supports_a_default(): void
     {
         $filter = (new FilterBuilder())
-            ->when('logs', static fn(FilterBuilder $q, mixed $dir) => $q->inDirectory(\is_string($dir) ? $dir : ''))
-            ->when(0, static fn(FilterBuilder $q) => $q->isDirectory(), static fn(FilterBuilder $q) => $q->isFile())
-            ->when(static fn(): bool => true, static fn(FilterBuilder $q) => $q->not()->isHidden());
+            ->when('logs', static fn(FilterBuilder $q, mixed $dir): FilterBuilder => $q->inDirectory(\is_string($dir) ? $dir : ''))
+            ->when(0, static fn(FilterBuilder $q): FilterBuilder => $q->isDirectory(), static fn(FilterBuilder $q): FilterBuilder => $q->isFile())
+            ->when(static fn(): bool => true, static fn(FilterBuilder $q): FilterBuilder => $q->not()->isHidden());
 
         self::assertSame('dirname equals logs AND is file AND NOT is hidden', $filter->describe());
     }

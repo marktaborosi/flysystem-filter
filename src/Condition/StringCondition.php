@@ -56,7 +56,7 @@ final readonly class StringCondition implements SerializableCondition
         }
 
         if ($this->ignoreCase && !$this->operator->isPattern()) {
-            $subject = self::lower($subject);
+            $subject = $this->lower($subject);
         }
 
         foreach ($this->needles as $needle) {
@@ -104,20 +104,20 @@ final readonly class StringCondition implements SerializableCondition
     private function prepare(string $value): string
     {
         return match ($this->operator) {
-            StringOperator::Regex => self::validRegex($value),
+            StringOperator::Regex => $this->validRegex($value),
             StringOperator::Glob => Glob::toRegex($value, $this->ignoreCase),
-            default => $this->ignoreCase ? self::lower($value) : $value,
+            default => $this->ignoreCase ? $this->lower($value) : $value,
         };
     }
 
-    private static function validRegex(string $pattern): string
+    private function validRegex(string $pattern): string
     {
         Regex::assertValid($pattern);
 
         return $pattern;
     }
 
-    private static function lower(string $value): string
+    private function lower(string $value): string
     {
         return \function_exists('mb_strtolower') ? mb_strtolower($value) : strtolower($value);
     }

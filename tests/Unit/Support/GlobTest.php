@@ -52,7 +52,7 @@ final class GlobTest extends TestCase
     #[Test]
     public function ignore_case(): void
     {
-        self::assertSame(1, preg_match(Glob::toRegex('*.JPG', ignoreCase: true), 'a.jpg'));
-        self::assertSame(0, preg_match(Glob::toRegex('*.JPG'), 'a.jpg'));
+        self::assertMatchesRegularExpression(Glob::toRegex('*.JPG', ignoreCase: true), 'a.jpg');
+        self::assertDoesNotMatchRegularExpression(Glob::toRegex('*.JPG'), 'a.jpg');
     }
 }

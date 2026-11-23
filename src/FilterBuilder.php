@@ -209,7 +209,7 @@ final class FilterBuilder implements SerializableCondition, JsonSerializable, St
             throw new InvalidFilterException('Empty group: add at least one condition between groupStart() and groupEnd().');
         }
 
-        self::assertNothingPending($group, 'groupEnd()');
+        $this->assertNothingPending($group, 'groupEnd()');
 
         $condition = $group->toCondition();
         $parent = $this->current();
@@ -251,7 +251,7 @@ final class FilterBuilder implements SerializableCondition, JsonSerializable, St
     public function where(Condition|Closure $condition): static
     {
         if ($condition instanceof Closure) {
-            if (self::isPredicate($condition)) {
+            if ($this->isPredicate($condition)) {
                 return $this->push(new Callback($condition));
             }
 
@@ -349,9 +349,9 @@ final class FilterBuilder implements SerializableCondition, JsonSerializable, St
     {
         $value = $value instanceof Closure ? $value($this) : $value;
 
-        if (self::isTruthy($value)) {
+        if ($this->isTruthy($value)) {
             $callback($this, $value);
-        } elseif ($default !== null) {
+        } elseif ($default instanceof Closure) {
             $default($this, $value);
         }
 
@@ -369,9 +369,9 @@ final class FilterBuilder implements SerializableCondition, JsonSerializable, St
     {
         $value = $value instanceof Closure ? $value($this) : $value;
 
-        if (!self::isTruthy($value)) {
+        if (!$this->isTruthy($value)) {
             $callback($this, $value);
-        } elseif ($default !== null) {
+        } elseif ($default instanceof Closure) {
             $default($this, $value);
         }
 
@@ -407,7 +407,7 @@ final class FilterBuilder implements SerializableCondition, JsonSerializable, St
      */
     public function toCondition(): Condition
     {
-        if ($this->compiled !== null) {
+        if ($this->compiled instanceof Condition) {
             return $this->compiled;
         }
 
@@ -418,7 +418,7 @@ final class FilterBuilder implements SerializableCondition, JsonSerializable, St
             ));
         }
 
-        self::assertNothingPending($this->root, 'the end of the filter');
+        $this->assertNothingPending($this->root, 'the end of the filter');
 
         return $this->compiled = $this->root->toCondition();
     }
@@ -594,7 +594,7 @@ final class FilterBuilder implements SerializableCondition, JsonSerializable, St
         return $this->open === [] ? $this->root : $this->open[\count($this->open) - 1];
     }
 
-    private static function assertNothingPending(Group $group, string $where): void
+    private function assertNothingPending(Group $group, string $where): void
     {
         if ($group->pendingOperator !== null) {
             throw new InvalidFilterException(\sprintf(
@@ -629,13 +629,12 @@ final class FilterBuilder implements SerializableCondition, JsonSerializable, St
         return $compiled;
     }
 
-    private static function isTruthy(mixed $value): bool
+    private function isTruthy(mixed $value): bool
     {
-        return $value !== null && $value !== false && $value !== 0 && $value !== 0.0
-            && $value !== '' && $value !== '0' && $value !== [];
+        return !\in_array($value, [null, false, 0, 0.0, '', '0', []], true);
     }
 
-    private static function isPredicate(Closure $closure): bool
+    private function isPredicate(Closure $closure): bool
     {
         $parameters = (new ReflectionFunction($closure))->getParameters();
         $type = isset($parameters[0]) ? $parameters[0]->getType() : null;

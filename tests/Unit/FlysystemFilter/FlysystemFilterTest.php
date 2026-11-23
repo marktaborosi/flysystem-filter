@@ -22,7 +22,7 @@ final class FlysystemFilterTest extends TestCase
     /**
      * @return list<StorageAttributes>
      */
-    private static function items(): array
+    private function items(): array
     {
         return [
             Items::file('test/file1.txt'),
@@ -36,7 +36,7 @@ final class FlysystemFilterTest extends TestCase
      *
      * @return list<string>
      */
-    private static function paths(iterable $listing): array
+    private function paths(iterable $listing): array
     {
         $paths = [];
         foreach ($listing as $item) {
@@ -50,17 +50,17 @@ final class FlysystemFilterTest extends TestCase
     public function filters_with_a_builder(): void
     {
         $filtered = (new FlysystemFilter())->filter(
-            new DirectoryListing(self::items()),
+            new DirectoryListing($this->items()),
             (new FilterBuilder())->isFile()->and()->extensionEquals('txt'),
         );
 
-        self::assertSame(['test/file1.txt'], self::paths($filtered));
+        self::assertSame(['test/file1.txt'], $this->paths($filtered));
     }
 
     #[Test]
     public function empty_builder_keeps_everything(): void
     {
-        $items = self::items();
+        $items = $this->items();
         $filtered = (new FlysystemFilter())->filter(new DirectoryListing($items), new FilterBuilder());
 
         self::assertSame($items, $filtered->toArray());
@@ -70,19 +70,19 @@ final class FlysystemFilterTest extends TestCase
     public function filters_with_a_callable(): void
     {
         $filtered = (new FlysystemFilter())->filter(
-            new DirectoryListing(self::items()),
+            new DirectoryListing($this->items()),
             static fn(StorageAttributes $item): bool => str_ends_with($item->path(), '.log'),
         );
 
-        self::assertSame(['test/file2.log'], self::paths($filtered));
+        self::assertSame(['test/file2.log'], $this->paths($filtered));
     }
 
     #[Test]
     public function filters_with_a_condition_object(): void
     {
-        $filtered = (new FlysystemFilter())->filter(self::items(), new IsDirectory());
+        $filtered = (new FlysystemFilter())->filter($this->items(), new IsDirectory());
 
-        self::assertSame(['test/subdir'], self::paths($filtered));
+        self::assertSame(['test/subdir'], $this->paths($filtered));
     }
 
     #[Test]
@@ -93,7 +93,7 @@ final class FlysystemFilterTest extends TestCase
             new FilterBuilder(),
         );
 
-        self::assertSame(['a.txt'], self::paths($filtered));
+        self::assertSame(['a.txt'], $this->paths($filtered));
     }
 
     #[Test]
@@ -128,9 +128,9 @@ final class FlysystemFilterTest extends TestCase
     #[Test]
     public function builder_works_with_native_directory_listing_filter(): void
     {
-        $filtered = (new DirectoryListing(self::items()))->filter((new FilterBuilder())->isDirectory());
+        $filtered = (new DirectoryListing($this->items()))->filter((new FilterBuilder())->isDirectory());
 
-        self::assertSame(['test/subdir'], self::paths($filtered));
+        self::assertSame(['test/subdir'], $this->paths($filtered));
     }
 
     #[Test]

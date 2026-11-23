@@ -15,8 +15,8 @@ $listing = $filesystem->listContents('', true);
 // is file AND (filename contains "notes" OR extension equals log) AND NOT is hidden
 $filter = FilterBuilder::create()
     ->isFile()
-    ->where(fn(FilterBuilder $q) => $q->filenameContains('notes')->or()->extensionEquals('log'))
-    ->whereNot(fn(FilterBuilder $q) => $q->isHidden());
+    ->where(fn(FilterBuilder $q): FilterBuilder => $q->filenameContains('notes')->or()->extensionEquals('log'))
+    ->whereNot(fn(FilterBuilder $q): FilterBuilder => $q->isHidden());
 
 echo $filter . PHP_EOL;
 

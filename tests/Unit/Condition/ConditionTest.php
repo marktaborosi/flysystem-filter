@@ -51,10 +51,7 @@ final class ConditionTest extends TestCase
     #[Test]
     public function describe_uses_parentheses_only_where_needed(): void
     {
-        self::assertSame(
-            'is file AND (is directory OR is file)',
-            (new AllOf(new IsFile(), new AnyOf(new IsDirectory(), new IsFile())))->describe(),
-        );
+        self::assertSame('is file AND (is directory OR is file)', (new AllOf(new IsFile(), new AnyOf(new IsDirectory(), new IsFile())))->describe());
         self::assertSame('NOT (is file AND is directory)', (new Not(new AllOf(new IsFile(), new IsDirectory())))->describe());
     }
 

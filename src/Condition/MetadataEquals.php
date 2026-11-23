@@ -31,7 +31,7 @@ final readonly class MetadataEquals implements SerializableCondition
 
     public function describe(): string
     {
-        $values = array_map(self::export(...), $this->values);
+        $values = array_map($this->export(...), $this->values);
 
         return \sprintf(
             'metadata "%s" equals %s',
@@ -40,7 +40,7 @@ final readonly class MetadataEquals implements SerializableCondition
         );
     }
 
-    private static function export(mixed $value): string
+    private function export(mixed $value): string
     {
         $json = json_encode($value, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
 

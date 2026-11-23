@@ -18,7 +18,7 @@ use PHPUnit\Framework\TestCase;
 
 final class SerializationTest extends TestCase
 {
-    private static function everyBuiltInFilter(): FilterBuilder
+    private function everyBuiltInFilter(): FilterBuilder
     {
         return FilterBuilder::create()
             ->isFile()
@@ -41,7 +41,7 @@ final class SerializationTest extends TestCase
     #[Test]
     public function round_trips_through_arrays_and_json(): void
     {
-        $filter = self::everyBuiltInFilter();
+        $filter = $this->everyBuiltInFilter();
 
         $fromArray = FilterBuilder::fromArray($filter->toArray());
         $fromJson = FilterBuilder::fromJson((string) json_encode($filter));
@@ -54,7 +54,7 @@ final class SerializationTest extends TestCase
     #[Test]
     public function restored_filter_behaves_identically(): void
     {
-        $filter = self::everyBuiltInFilter();
+        $filter = $this->everyBuiltInFilter();
         $restored = FilterBuilder::fromJson((string) json_encode($filter));
         $item = Items::file('docs/guide/README.MD', 4096, 'public', 1_750_000_000, null, ['ETag' => 'x', 'StorageClass' => 'STANDARD']);
 
@@ -66,17 +66,14 @@ final class SerializationTest extends TestCase
     #[Test]
     public function array_format_is_stable(): void
     {
-        self::assertSame(
-            [
-                'type' => 'all',
-                'conditions' => [
-                    ['type' => 'isFile'],
-                    ['type' => 'string', 'subject' => 'extension', 'operator' => 'equals', 'values' => ['txt'], 'ignoreCase' => true],
-                    ['type' => 'not', 'condition' => ['type' => 'size', 'operator' => '>', 'bytes' => 1024]],
-                ],
+        self::assertSame([
+            'type' => 'all',
+            'conditions' => [
+                ['type' => 'isFile'],
+                ['type' => 'string', 'subject' => 'extension', 'operator' => 'equals', 'values' => ['txt'], 'ignoreCase' => true],
+                ['type' => 'not', 'condition' => ['type' => 'size', 'operator' => '>', 'bytes' => 1024]],
             ],
-            FilterBuilder::create()->isFile()->extensionEquals('txt')->not()->sizeGt('1K')->toArray(),
-        );
+        ], FilterBuilder::create()->isFile()->extensionEquals('txt')->not()->sizeGt('1K')->toArray());
     }
 
     #[Test]

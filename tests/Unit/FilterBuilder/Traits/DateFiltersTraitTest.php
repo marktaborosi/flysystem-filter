@@ -61,7 +61,7 @@ final class DateFiltersTraitTest extends TestCase
     #[Test]
     public function unknown_modification_time_never_matches(): void
     {
-        $item = Items::file('a', lastModified: null);
+        $item = Items::file('a');
 
         self::assertFalse((new FilterBuilder())->lastModifiedBefore(self::NOON)->matches($item));
         self::assertFalse((new FilterBuilder())->lastModifiedAfter(0)->matches($item));

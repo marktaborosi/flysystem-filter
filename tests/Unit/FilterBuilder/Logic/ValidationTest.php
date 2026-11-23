@@ -25,17 +25,17 @@ final class ValidationTest extends TestCase
      */
     public static function malformedAtCallTime(): iterable
     {
-        yield 'leading or()' => [static fn(FilterBuilder $f) => $f->or(), 'at the start of the filter'];
-        yield 'leading and()' => [static fn(FilterBuilder $f) => $f->and(), 'at the start of the filter'];
-        yield 'or() or()' => [static fn(FilterBuilder $f) => $f->isFile()->or()->or(), 'directly after or()'];
-        yield 'and() or()' => [static fn(FilterBuilder $f) => $f->isFile()->and()->or(), 'directly after and()'];
-        yield 'or() at group start' => [static fn(FilterBuilder $f) => $f->isFile()->groupStart()->or(), 'at the start of a group'];
-        yield 'not() not()' => [static fn(FilterBuilder $f) => $f->not()->not(), 'twice in a row'];
-        yield 'not() or()' => [static fn(FilterBuilder $f) => $f->isFile()->not()->or(), 'directly after not()'];
-        yield 'empty group' => [static fn(FilterBuilder $f) => $f->groupStart()->groupEnd(), 'Empty group'];
-        yield 'groupEnd() without groupStart()' => [static fn(FilterBuilder $f) => $f->groupEnd(), 'Mismatched groupEnd()'];
-        yield 'group ending with or()' => [static fn(FilterBuilder $f) => $f->groupStart()->isFile()->or()->groupEnd(), 'Dangling or() before groupEnd()'];
-        yield 'group ending with not()' => [static fn(FilterBuilder $f) => $f->groupStart()->isFile()->not()->groupEnd(), 'Dangling not() before groupEnd()'];
+        yield 'leading or()' => [static fn(FilterBuilder $f): FilterBuilder => $f->or(), 'at the start of the filter'];
+        yield 'leading and()' => [static fn(FilterBuilder $f): FilterBuilder => $f->and(), 'at the start of the filter'];
+        yield 'or() or()' => [static fn(FilterBuilder $f): FilterBuilder => $f->isFile()->or()->or(), 'directly after or()'];
+        yield 'and() or()' => [static fn(FilterBuilder $f): FilterBuilder => $f->isFile()->and()->or(), 'directly after and()'];
+        yield 'or() at group start' => [static fn(FilterBuilder $f): FilterBuilder => $f->isFile()->groupStart()->or(), 'at the start of a group'];
+        yield 'not() not()' => [static fn(FilterBuilder $f): FilterBuilder => $f->not()->not(), 'twice in a row'];
+        yield 'not() or()' => [static fn(FilterBuilder $f): FilterBuilder => $f->isFile()->not()->or(), 'directly after not()'];
+        yield 'empty group' => [static fn(FilterBuilder $f): FilterBuilder => $f->groupStart()->groupEnd(), 'Empty group'];
+        yield 'groupEnd() without groupStart()' => [static fn(FilterBuilder $f): FilterBuilder => $f->groupEnd(), 'Mismatched groupEnd()'];
+        yield 'group ending with or()' => [static fn(FilterBuilder $f): FilterBuilder => $f->groupStart()->isFile()->or()->groupEnd(), 'Dangling or() before groupEnd()'];
+        yield 'group ending with not()' => [static fn(FilterBuilder $f): FilterBuilder => $f->groupStart()->isFile()->not()->groupEnd(), 'Dangling not() before groupEnd()'];
     }
 
     /**
@@ -56,11 +56,11 @@ final class ValidationTest extends TestCase
      */
     public static function incompleteExpressions(): iterable
     {
-        yield 'trailing and()' => [static fn(FilterBuilder $f) => $f->isFile()->and(), 'Dangling and() before the end of the filter'];
-        yield 'trailing or()' => [static fn(FilterBuilder $f) => $f->isFile()->or(), 'Dangling or() before the end of the filter'];
-        yield 'trailing not()' => [static fn(FilterBuilder $f) => $f->isFile()->not(), 'Dangling not() before the end of the filter'];
-        yield 'unclosed group' => [static fn(FilterBuilder $f) => $f->groupStart()->extensionEquals('txt'), 'Unbalanced groups: missing groupEnd() for 1 open group(s).'];
-        yield 'two unclosed groups' => [static fn(FilterBuilder $f) => $f->groupStart()->isFile()->groupStart()->isPublic(), 'for 2 open group(s)'];
+        yield 'trailing and()' => [static fn(FilterBuilder $f): FilterBuilder => $f->isFile()->and(), 'Dangling and() before the end of the filter'];
+        yield 'trailing or()' => [static fn(FilterBuilder $f): FilterBuilder => $f->isFile()->or(), 'Dangling or() before the end of the filter'];
+        yield 'trailing not()' => [static fn(FilterBuilder $f): FilterBuilder => $f->isFile()->not(), 'Dangling not() before the end of the filter'];
+        yield 'unclosed group' => [static fn(FilterBuilder $f): FilterBuilder => $f->groupStart()->extensionEquals('txt'), 'Unbalanced groups: missing groupEnd() for 1 open group(s).'];
+        yield 'two unclosed groups' => [static fn(FilterBuilder $f): FilterBuilder => $f->groupStart()->isFile()->groupStart()->isPublic(), 'for 2 open group(s)'];
     }
 
     /**
