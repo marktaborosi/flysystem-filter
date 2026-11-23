@@ -69,7 +69,7 @@ final class LaravelStorageMacroTest extends TestCase
      *
      * @return list<string>
      */
-    private static function sorted(iterable $paths): array
+    private function sorted(iterable $paths): array
     {
         $list = [...$paths];
         sort($list);
@@ -94,7 +94,7 @@ final class LaravelStorageMacroTest extends TestCase
             ->paths();
 
         self::assertInstanceOf(LazyCollection::class, $paths);
-        self::assertSame(['uploads/2025/big.jpg', 'uploads/cat.jpg'], self::sorted($paths));
+        self::assertSame(['uploads/2025/big.jpg', 'uploads/cat.jpg'], $this->sorted($paths));
     }
 
     #[Test]
@@ -103,7 +103,7 @@ final class LaravelStorageMacroTest extends TestCase
         $filter = Storage::filter('logs');
 
         self::assertInstanceOf(StorageFilter::class, $filter);
-        self::assertSame(['logs/app.log'], self::sorted($filter->isFile()->paths()));
+        self::assertSame(['logs/app.log'], $this->sorted($filter->isFile()->paths()));
     }
 
     #[Test]
@@ -111,7 +111,7 @@ final class LaravelStorageMacroTest extends TestCase
     {
         self::assertSame(
             ['logs/app.log', 'uploads/.hidden.jpg', 'uploads/2025/big.jpg', 'uploads/cat.jpg', 'uploads/dog.png', 'uploads/notes.txt'],
-            self::sorted($this->diskFilter()->isFile()->paths()),
+            $this->sorted($this->diskFilter()->isFile()->paths()),
         );
     }
 
@@ -120,9 +120,9 @@ final class LaravelStorageMacroTest extends TestCase
     {
         self::assertSame(
             ['uploads/.hidden.jpg', 'uploads/cat.jpg', 'uploads/dog.png', 'uploads/notes.txt'],
-            self::sorted($this->diskFilter('uploads', recursive: false)->isFile()->paths()),
+            $this->sorted($this->diskFilter('uploads', recursive: false)->isFile()->paths()),
         );
-        self::assertSame(['uploads/2025'], self::sorted($this->diskFilter('uploads', false)->isDirectory()->paths()));
+        self::assertSame(['uploads/2025'], $this->sorted($this->diskFilter('uploads', false)->isDirectory()->paths()));
     }
 
     #[Test]
@@ -132,7 +132,7 @@ final class LaravelStorageMacroTest extends TestCase
 
         $paths = $this->diskFilter('uploads', true, $images)->not()->isHidden()->sizeLt('1K')->paths();
 
-        self::assertSame(['uploads/dog.png'], self::sorted($paths));
+        self::assertSame(['uploads/dog.png'], $this->sorted($paths));
         self::assertSame('MIME type starts with image/', $images->describe());
     }
 
@@ -171,12 +171,12 @@ final class LaravelStorageMacroTest extends TestCase
     {
         $query = $this->diskFilter('uploads')->extensionEquals('png');
 
-        self::assertSame(['uploads/dog.png'], self::sorted($query->paths()));
-        self::assertSame(['uploads/dog.png'], self::sorted($query->paths()));
+        self::assertSame(['uploads/dog.png'], $this->sorted($query->paths()));
+        self::assertSame(['uploads/dog.png'], $this->sorted($query->paths()));
 
         $this->disk->put('uploads/new.png', 'x');
 
-        self::assertSame(['uploads/dog.png', 'uploads/new.png'], self::sorted($query->paths()));
+        self::assertSame(['uploads/dog.png', 'uploads/new.png'], $this->sorted($query->paths()));
     }
 
     #[Test]
@@ -193,12 +193,12 @@ final class LaravelStorageMacroTest extends TestCase
     #[Test]
     public function filter_builder_macros_are_available(): void
     {
-        FilterBuilder::macro('isPhoto', static fn(FilterBuilder $q) => $q->extensionEquals(['jpg', 'jpeg']));
+        FilterBuilder::macro('isPhoto', static fn(FilterBuilder $q): FilterBuilder => $q->extensionEquals(['jpg', 'jpeg']));
 
         $query = $this->diskFilter('uploads');
         $query->isPhoto();
 
-        self::assertSame(['uploads/.hidden.jpg', 'uploads/2025/big.jpg', 'uploads/cat.jpg'], self::sorted($query->paths()));
+        self::assertSame(['uploads/.hidden.jpg', 'uploads/2025/big.jpg', 'uploads/cat.jpg'], $this->sorted($query->paths()));
     }
 
     #[Test]
