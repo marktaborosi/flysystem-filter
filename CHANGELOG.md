@@ -3,7 +3,7 @@
 All notable changes to **Flysystem Filter** will be documented in this file.  
 This project adheres to [Semantic Versioning](https://semver.org).
 
-## [4.1.0] – Unreleased
+## [4.1.0] – 2026-11-26
 
 ### Added
 - **Laravel disk macro:** `Storage::disk('s3')->filter('uploads')` (or `Storage::filter()` on the default disk) returns a `StorageFilter` query. Every `FilterBuilder` method can be chained on it. Results come from `paths()`, `get()`, `first()`, `exists()`, `doesntExist()`, `count()`, or by iterating the query.
